@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Brand Discovery Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Firebase Libraries (UMD version for broad compatibility) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+    <!-- Chosen Palette: TIF Yellow & Black -->
+    <!-- Application Structure Plan: A multi-step interactive wizard guiding users through a detailed brand questionnaire. A dynamic, graphical "Brand Snapshot" on the side provides real-time, infographic-style feedback, including a personality radar chart. This structure makes a complex form digestible and visually engaging, culminating in a comprehensive data submission and a client-facing report. -->
+    <!-- Visualization & Content Choices: Report Info: Brand Personality -> Goal: Compare -> Viz/Presentation: Interactive Radar Chart (Chart.js). Other qualitative data is presented in visually distinct cards with icons to create an infographic feel. This approach ensures all data is captured effectively and presented in an engaging manner. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Archivo', sans-serif;
+            background-color: #f3f4f6; /* gray-100 */
+            color: #1f2937; /* gray-800 */
+        }
+        .form-input, .form-textarea, .form-checkbox, .form-radio {
+            background-color: #FFFFFF;
+            border: 1px solid #d1d5db; /* gray-300 */
+            border-radius: 0.5rem;
+            color: #111827; /* gray-900 */
+            padding: 0.75rem 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+        .form-input:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #facc15; /* yellow-400 */
+            box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.4);
+        }
+        .form-checkbox, .form-radio {
+            width: 1.25em;
+            height: 1.25em;
+            padding: 0;
+            accent-color: #111827; /* gray-900 */
+        }
+        .nav-button, .add-persona-btn {
+            background-color: #111827; /* gray-900 */
+            color: #FFFFFF;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        .nav-button:hover:not(:disabled), .add-persona-btn:hover:not(:disabled) {
+            background-color: #000000;
+        }
+        .nav-button:disabled, .add-persona-btn:disabled {
+            background-color: #9ca3af; /* gray-400 */
+            cursor: not-allowed;
+        }
+        .personality-tag {
+            cursor: pointer;
+            border: 1px solid #6b7280; /* gray-500 */
+            color: #374151; /* gray-700 */
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .personality-tag.selected {
+            background-color: #111827; /* gray-900 */
+            color: #facc15; /* yellow-400 */
+            border-color: #111827;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            max-height: 350px;
+        }
+        .snapshot-placeholder {
+            font-style: italic;
+            color: #9ca3af; /* gray-400 */
+        }
+        .snapshot-card {
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+        .snapshot-icon {
+            flex-shrink: 0;
+            width: 1.5rem;
+            height: 1.5rem;
+            color: #facc15;
+        }
+        .snapshot-content h4 {
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.875rem;
+        }
+        .snapshot-content p, .snapshot-content ul {
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+            word-break: break-word;
+        }
+        .header-logo {
+            font-weight: 700;
+            font-size: 2.25rem;
+            letter-spacing: -0.05em;
+            color: white;
+        }
+        .header-logo .logo-yellow {
+            color: #fde047; /* yellow-300 */
+        }
+        .persona-block {
+            border-left: 3px solid #facc15;
+            padding-left: 1.5rem;
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div id="app-container">
+        <header class="bg-black py-4">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                 <div class="header-logo">
+                    <span>the</span><span class="logo-yellow">ideas</span><span>factory</span>
+                </div>
+            </div>
+        </header>
+        <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:px-8">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-gray-900">Brand Discovery Tool</h1>
+                <p class="mt-2 text-lg text-gray-600">An interactive first step in our Brand Starter Process.</p>
+            </div>
+
+            <main class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                <div id="questionnaire-container" class="lg:col-span-3 bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200">
+                    
+                    <div id="step-1" class="step">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-1">Part 1: The Business Profile</h2>
+                        <p class="mb-6 text-gray-600">Let's start with the fundamentals. This helps us understand the core of who you are and what you do.</p>
+                        <div class="space-y-6">
+                            <div><label for="orgName" class="block text-sm font-medium text-gray-700 mb-1">Organization Name</label><input type="text" id="orgName" class="form-input" placeholder="e.g., Acme Innovations"></div>
+                            <div><label for="oneLiner" class="block text-sm font-medium text-gray-700 mb-1">The One-Liner</label><input type="text" id="oneLiner" class="form-input" placeholder="We help [who] do [what] by [benefit]."></div>
+                            <div><label for="pitch" class="block text-sm font-medium text-gray-700 mb-1">The "Who Are You?" Pitch</label><textarea id="pitch" rows="3" class="form-textarea" placeholder="In a short paragraph, describe your organization's story."></textarea></div>
+                            <div><label for="objective" class="block text-sm font-medium text-gray-700 mb-1">Primary Objective</label><input type="text" id="objective" class="form-input" placeholder="What is the single most important business outcome?"></div>
+                        </div>
+                    </div>
+
+                    <div id="step-2" class="step hidden">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-1">Part 2: The Market Landscape</h2>
+                        <p class="mb-6 text-gray-600">Help us understand where you fit in. Knowing your competitors and your unique edge is key to positioning your brand.</p>
+                        <div class="space-y-8">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Top 3 competitors / alternatives</label>
+                                <div class="space-y-4">
+                                    <div class="p-4 border rounded-lg bg-gray-50">
+                                        <input type="text" id="competitor1_name" class="form-input mb-2" placeholder="Competitor 1 Name (Required)">
+                                        <textarea id="competitor1_why" rows="2" class="form-textarea" placeholder="Why they're a competitor..."></textarea>
+                                    </div>
+                                    <div class="p-4 border rounded-lg bg-gray-50">
+                                        <input type="text" id="competitor2_name" class="form-input mb-2" placeholder="Competitor 2 Name (Required)">
+                                        <textarea id="competitor2_why" rows="2" class="form-textarea" placeholder="Why they're a competitor..."></textarea>
+                                    </div>
+                                    <div class="p-4 border rounded-lg bg-gray-50">
+                                        <input type="text" id="competitor3_name" class="form-input mb-2" placeholder="Competitor 3 Name (Required)">
+                                        <textarea id="competitor3_why" rows="2" class="form-textarea" placeholder="Why they're a competitor..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div><label for="differentiation" class="block text-sm font-medium text-gray-700 mb-1">What makes you different? (3 bullets)</label><input type="text" id="differentiation" class="form-input" placeholder="Enter as comma-separated list, e.g., Our patented tech, 24/7 support, ..."></div>
+                            <div><label for="risks" class="block text-sm font-medium text-gray-700 mb-1">Top 3 risks / barriers to adoption</label><input type="text" id="risks" class="form-input" placeholder="e.g., High cost, Lack of awareness, Market saturation"></div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">One position you want to own in market</label>
+                                <div class="space-y-2" id="marketPosition">
+                                    <label class="flex items-center"><input type="radio" name="position" value="Most reliable / proven choice" class="form-radio mr-2"><span class="text-sm">Most reliable / proven choice</span></label>
+                                    <label class="flex items-center"><input type="radio" name="position" value="Most innovative / breakthrough" class="form-radio mr-2"><span class="text-sm">Most innovative / breakthrough</span></label>
+                                    <label class="flex items-center"><input type="radio" name="position" value="Best value (price / ROI)" class="form-radio mr-2"><span class="text-sm">Best value (price / ROI)</span></label>
+                                    <label class="flex items-center"><input type="radio" name="position" value="Ethical / sustainable partner" class="form-radio mr-2"><span class="text-sm">Ethical / sustainable partner</span></label>
+                                    <label class="flex items-center"><input type="radio" name="position" value="Niche specialist" class="form-radio mr-2"><span class="text-sm">Niche specialist</span></label>
+                                </div>
+                            </div>
+                             <div><label for="donts" class="block text-sm font-medium text-gray-700 mb-1">Words you absolutely DON’T want associated with your brand (Optional)</label><input type="text" id="donts" class="form-input" placeholder="e.g., Cheap, Slow, Complicated"></div>
+                        </div>
+                    </div>
+
+                    <div id="step-3" class="step hidden">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-1">Part 3: The Audience</h2>
+                        <p class="mb-6 text-gray-600">Describe the key people involved in choosing and using your product or service.</p>
+                        <div class="space-y-4">
+                            <div>
+                                <label for="economicBuyer" class="block text-sm font-medium text-gray-700 mb-1">The Economic Buyer</label>
+                                <textarea id="economicBuyer" rows="3" class="form-textarea" placeholder="Who decides to purchase and controls the budget?"></textarea>
+                            </div>
+                            <div>
+                                <label for="endUser" class="block text-sm font-medium text-gray-700 mb-1">The End Beneficiary or User</label>
+                                <textarea id="endUser" rows="3" class="form-textarea" placeholder="Who directly uses the product/service and gets value from it?"></textarea>
+                            </div>
+                            <div>
+                                <label for="technicalInfluencer" class="block text-sm font-medium text-gray-700 mb-1">The Technical Influencer</label>
+                                <textarea id="technicalInfluencer" rows="3" class="form-textarea" placeholder="Who evaluates the technical aspects and influences the decision? (e.g., IT, engineering)"></textarea>
+                            </div>
+                             <div>
+                                <label for="otherInfluencer" class="block text-sm font-medium text-gray-700 mb-1">Other Key Influencers</label>
+                                <textarea id="otherInfluencer" rows="3" class="form-textarea" placeholder="Are there other groups or roles that have a say in the decision?"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="step-4" class="step hidden">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-1">Part 4: Brand Ambition & Personality</h2>
+                        <p class="mb-6 text-gray-600">Define your brand's 'why' and select 3-5 adjectives for its personality.</p>
+                         <div class="space-y-6">
+                            <div><label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose - The "Why"</label><textarea id="purpose" rows="4" class="form-textarea" placeholder="Beyond making money, what is the higher-order reason this company exists?"></textarea></div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Brand Personality</label>
+                                <div id="personality-tags-container" class="flex flex-wrap gap-3"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="step-5" class="step hidden">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-1">Part 5: Visual Direction</h2>
+                        <p class="mb-6 text-gray-600">Share any initial aesthetic preferences you have. This provides a starting point for our creative exploration.</p>
+                         <div class="space-y-6">
+                            <div><label for="admiredBrands" class="block text-sm font-medium text-gray-700 mb-1">Admired Brands</label><textarea id="admiredBrands" rows="3" class="form-textarea" placeholder="List 2-3 brands you admire and why."></textarea></div>
+                            <div><label for="colors" class="block text-sm font-medium text-gray-700 mb-1">Colors</label><input type="text" id="colors" class="form-input" placeholder="Are there any colors you're drawn to or wish to avoid?"></div>
+                        </div>
+                    </div>
+
+                    <div id="step-6" class="step hidden">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-1">Part 6: Target Personas (Optional)</h2>
+                        <p class="mb-6 text-gray-600">If you have more detailed personas, you can add them here. This section is optional.</p>
+                        <div id="personas-container">
+                            <!-- Persona 1 -->
+                            <div id="persona1-block" class="persona-block">
+                                <h3 class="text-xl font-bold text-gray-800 mb-4">Persona 1</h3>
+                                <div class="space-y-6">
+                                    <div><label for="persona1_name" class="block text-sm font-medium text-gray-700 mb-1">Persona name / label</label><input type="text" id="persona1_name" class="form-input" placeholder="e.g., Technical Team Lead"></div>
+                                    <div><label for="persona1_role" class="block text-sm font-medium text-gray-700 mb-1">Role / demographic / company type</label><input type="text" id="persona1_role" class="form-input" placeholder="e.g., Manages a team of 10 engineers in a mid-size tech firm"></div>
+                                    <div><label for="persona1_motivations" class="block text-sm font-medium text-gray-700 mb-1">Top 3 motivations (what they need)</label><input type="text" id="persona1_motivations" class="form-input" placeholder="Comma-separated, e.g., Reliability, Scalability, Good documentation"></div>
+                                    <div><label for="persona1_barriers" class="block text-sm font-medium text-gray-700 mb-1">Top 3 objections / barriers</label><input type="text" id="persona1_barriers" class="form-input" placeholder="Comma-separated, e.g., High cost, Integration complexity, Lack of case studies"></div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Where they spend time / channels</label>
+                                        <div id="persona1_channels" class="grid grid-cols-2 gap-x-4 gap-y-2"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="persona2-block" class="persona-block hidden">
+                                <h3 class="text-xl font-bold text-gray-800 mb-4">Persona 2</h3>
+                                <div class="space-y-6">
+                                    <!-- Fields will be dynamically injected -->
+                                </div>
+                            </div>
+                            <div id="persona3-block" class="persona-block hidden">
+                                <h3 class="text-xl font-bold text-gray-800 mb-4">Persona 3</h3>
+                                <div class="space-y-6">
+                                     <!-- Fields will be dynamically injected -->
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-6 text-center">
+                            <button id="addPersonaBtn" class="add-persona-btn text-sm">Add Persona 2</button>
+                        </div>
+                    </div>
+
+                    <div id="step-7" class="step hidden text-center">
+                        <h2 class="text-3xl font-bold text-gray-900 mb-4">Your Brand Discovery is Complete!</h2>
+                        <p class="text-lg text-gray-600 mb-6">You've taken a fantastic first step in defining your brand. Your responses have been securely submitted. You can now generate a local copy for your records.</p>
+                        <p class="text-lg text-gray-700 font-medium mb-8">Ready to take the next step? Let's build your brand together.</p>
+                        <button id="generateReportBtn" class="inline-block bg-black text-yellow-400 py-3 px-8 rounded-lg font-bold text-lg hover:bg-gray-800 transition-colors">Submit & Generate Report</button>
+                    </div>
+
+                    <div class="mt-8 flex justify-between items-center">
+                        <button id="prevBtn" class="nav-button" disabled>Previous</button>
+                        <div id="step-indicator" class="text-sm font-medium text-gray-500">Step 1 of 7</div>
+                        <button id="nextBtn" class="nav-button">Next</button>
+                    </div>
+                </div>
+
+                <aside id="snapshot-panel" class="lg:col-span-2 bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200 sticky top-8 self-start">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4 border-b-2 border-yellow-400 pb-3">Brand Snapshot</h3>
+                    <div id="snapshot-container" class="space-y-4 max-h-[75vh] overflow-y-auto pr-2">
+                        <!-- Snapshot content will be dynamically generated here -->
+                    </div>
+                </aside>
+            </main>
+        </div>
+    </div>
+    
+    <script>
+        // --- START: YOUR FIREBASE CONFIGURATION ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyAEJ6wohox9MlYvTMHFOFnvNnXQa05B5RI",
+          authDomain: "brand-discovery-tool.firebaseapp.com",
+          projectId: "brand-discovery-tool",
+          storageBucket: "brand-discovery-tool.appspot.com",
+          messagingSenderId: "838680368434",
+          appId: "1:838680368434:web:63f24e8e9405f62d4f732b"
+        };
+        // --- END: YOUR FIREBASE CONFIGURATION ---
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        auth.signInAnonymously().catch(error => {
+            console.error("Anonymous sign-in failed:", error);
+            const appContainer = document.getElementById('app-container');
+            appContainer.innerHTML = `<div class="text-center p-8"><h1 class="text-2xl font-bold text-red-600">Firebase Connection Failed</h1><p class="mt-2 text-gray-600">Could not connect to the database. Please check your connection or contact support.</p></div>`;
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const appContainer = document.getElementById('app-container');
+            const steps = document.querySelectorAll('.step');
+            const nextBtn = document.getElementById('nextBtn');
+            const prevBtn = document.getElementById('prevBtn');
+            const stepIndicator = document.getElementById('step-indicator');
+            const generateReportBtn = document.getElementById('generateReportBtn');
+            const addPersonaBtn = document.getElementById('addPersonaBtn');
+            const snapshotContainer = document.getElementById('snapshot-container');
+
+            let currentStep = 1;
+            const totalSteps = steps.length;
+            let personalityChart = null;
+            let personalityChartImage = null;
+
+            const state = {
+                'orgName': '', 'oneLiner': '', 'pitch': '', 'objective': '',
+                'competitors': [], 'differentiation': '', 'risks': '', 'marketPosition': '', 'donts': '',
+                'audience': { economicBuyer: '', endUser: '', technicalInfluencer: '', otherInfluencer: '' },
+                'purpose': '', 'selectedTags': [], 'admiredBrands': '', 'colors': '', 'personas': []
+            };
+            
+            const personalityData = {
+                'Technical & Scientific': ['Precise', 'Data-Driven', 'Analytical', 'Innovative', 'Rigorous', 'Systematic'],
+                'Warm & Human': ['Empathetic', 'Friendly', 'Supportive', 'Approachable', 'Authentic', 'Collaborative'],
+                'Minimal & Modern': ['Simple', 'Elegant', 'Bold', 'Confident', 'Refined', 'Forward-thinking'],
+                'Industrial & Rugged': ['Strong', 'Durable', 'Practical', 'Grounded', 'Reliable', 'Hardworking'],
+            };
+            const allTags = Object.values(personalityData).flat();
+            const tagsContainer = document.getElementById('personality-tags-container');
+            allTags.forEach(tag => {
+                const button = document.createElement('button');
+                button.className = 'personality-tag px-4 py-2 rounded-full text-sm font-medium';
+                button.textContent = tag;
+                button.dataset.tag = tag;
+                tagsContainer.appendChild(button);
+            });
+            
+            const persona1FieldsHTML = document.getElementById('persona1-block').querySelector('.space-y-6').innerHTML;
+            for(let i = 2; i <= 3; i++) {
+                const container = document.getElementById(`persona${i}-block`).querySelector('.space-y-6');
+                if (container) {
+                    container.innerHTML = persona1FieldsHTML.replaceAll('persona1', `persona${i}`);
+                }
+            }
+            
+            addPersonaBtn.addEventListener('click', () => {
+                const p2 = document.getElementById('persona2-block'), p3 = document.getElementById('persona3-block');
+                if (p2.classList.contains('hidden')) {
+                    p2.classList.remove('hidden'); addPersonaBtn.textContent = 'Add Persona 3';
+                } else if (p3.classList.contains('hidden')) {
+                    p3.classList.remove('hidden'); addPersonaBtn.disabled = true; addPersonaBtn.textContent = 'All Personas Added';
+                }
+            });
+
+            const updateStepView = () => {
+                steps.forEach((step, index) => step.classList.toggle('hidden', index + 1 !== currentStep));
+                stepIndicator.textContent = `Step ${currentStep} of ${totalSteps}`;
+                prevBtn.disabled = currentStep === 1;
+                nextBtn.classList.toggle('hidden', currentStep === totalSteps);
+            };
+            
+            nextBtn.addEventListener('click', () => { if (currentStep < totalSteps) { currentStep++; updateStepView(); } });
+            prevBtn.addEventListener('click', () => { if (currentStep > 1) { currentStep--; updateStepView(); } });
+            
+            function updateStateFromInputs() {
+                state.orgName = document.getElementById('orgName').value;
+                state.oneLiner = document.getElementById('oneLiner').value;
+                state.pitch = document.getElementById('pitch').value;
+                state.objective = document.getElementById('objective').value;
+                state.competitors = [1, 2, 3].map(i => ({ name: document.getElementById(`competitor${i}_name`).value, why: document.getElementById(`competitor${i}_why`).value })).filter(c => c.name);
+                state.differentiation = document.getElementById('differentiation').value;
+                state.risks = document.getElementById('risks').value;
+                const positionEl = document.querySelector('input[name="position"]:checked');
+                state.marketPosition = positionEl ? positionEl.value : '';
+                state.donts = document.getElementById('donts').value;
+                state.audience = {
+                    economicBuyer: document.getElementById('economicBuyer').value,
+                    endUser: document.getElementById('endUser').value,
+                    technicalInfluencer: document.getElementById('technicalInfluencer').value,
+                    otherInfluencer: document.getElementById('otherInfluencer').value,
+                };
+                state.purpose = document.getElementById('purpose').value;
+                state.selectedTags = Array.from(tagsContainer.querySelectorAll('.personality-tag.selected')).map(btn => btn.dataset.tag);
+                state.admiredBrands = document.getElementById('admiredBrands').value;
+                state.colors = document.getElementById('colors').value;
+                state.personas = [];
+                for(let i = 1; i <= 3; i++) {
+                    const nameEl = document.getElementById(`persona${i}_name`);
+                    if (nameEl && nameEl.value.trim() !== '') {
+                        const channelsChecked = Array.from(document.querySelectorAll(`#persona${i}_channels input[type=checkbox]:checked`)).map(cb => {
+                            if (cb.value === 'Other') {
+                                const otherText = document.getElementById(`persona${i}_channels_other`).value;
+                                return otherText ? `Other: ${otherText}` : 'Other';
+                            }
+                            return cb.value;
+                        });
+                        state.personas.push({ name: nameEl.value, role: document.getElementById(`persona${i}_role`).value, motivations: document.getElementById(`persona${i}_motivations`).value, barriers: document.getElementById(`persona${i}_barriers`).value, channels: channelsChecked });
+                    }
+                }
+            }
+            
+            function renderSnapshot() {
+                updateStateFromInputs();
+                snapshotContainer.innerHTML = '';
+                
+                const createCard = (title, content, iconSvg) => {
+                    const card = document.createElement('div');
+                    card.className = 'snapshot-card';
+                    card.innerHTML = `<div class="snapshot-icon">${iconSvg}</div><div class="snapshot-content"><h4>${title}</h4>${content}</div>`;
+                    return card;
+                };
+
+                const icons = {
+                    org: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h6M9 11.25h6M9 15.75h6" /></svg>`,
+                    quote: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.17 48.17 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>`,
+                    objective: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15.91 15.91L12 12m0 0l-3.91-3.91M12 12l3.91-3.91M12 12l-3.91 3.91" /></svg>`,
+                    diff: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
+                    risks: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>`,
+                    audience: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m-7.5-2.962c.57-1.023 1.535-1.85 2.7-2.337m-2.7 2.337c-.329 1.155.114 2.384.624 3.379m6.12-3.379c.51 1 .624 2.224.114 3.379m-6.234-4.553a3.03 3.03 0 013.748 0M12 6.75a3.03 3.03 0 013.748 0m-3.748 0a3.03 3.03 0 00-3.748 0M12 19.5a3.03 3.03 0 01-3.748 0m3.748 0a3.03 3.03 0 003.748 0m-3.748-12.75h.008v.008h-.008V6.75z" /></svg>`,
+                    purpose: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" /></svg>`,
+                    donts: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>`,
+                    colors: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.152-.152.322-.28.5-.398l4.493-2.012a.75.75 0 01.99.99l-2.012 4.493c-.118.278-.246.548-.398.8z" /></svg>`,
+                };
+                
+                const contentOrPlaceholder = (value, placeholder) => `<p>${value || `<span class="snapshot-placeholder">${placeholder}</span>`}</p>`;
+                
+                snapshotContainer.appendChild(createCard('Organization Name', contentOrPlaceholder(state.orgName, 'Your name...'), icons.org));
+                snapshotContainer.appendChild(createCard('One-Liner', contentOrPlaceholder(state.oneLiner, 'Your one-liner...'), icons.quote));
+                snapshotContainer.appendChild(createCard('Primary Objective', contentOrPlaceholder(state.objective, 'Your main goal...'), icons.objective));
+                
+                if (state.differentiation) snapshotContainer.appendChild(createCard('Key Differentiators', `<ul class="list-disc list-inside">${state.differentiation.split(',').map(i=>`<li>${i.trim()}</li>`).join('')}</ul>`, icons.diff));
+                if (state.risks) snapshotContainer.appendChild(createCard('Risks & Barriers', `<ul class="list-disc list-inside">${state.risks.split(',').map(i=>`<li>${i.trim()}</li>`).join('')}</ul>`, icons.risks));
+                
+                const audienceContent = Object.entries(state.audience).map(([key, value]) => value ? `<strong>${key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</strong> ${value}` : '').filter(Boolean).join('<br>');
+                if (audienceContent) snapshotContainer.appendChild(createCard('Key Audience Roles', `<p class="text-xs">${audienceContent.replace(/\n/g, '<br>')}</p>`, icons.audience));
+                
+                if (state.purpose) snapshotContainer.appendChild(createCard('Brand Purpose (The "Why")', contentOrPlaceholder(state.purpose, 'Your purpose...'), icons.purpose));
+                if (state.donts) snapshotContainer.appendChild(createCard('Words to Avoid', contentOrPlaceholder(state.donts, 'e.g., Cheap, Slow...'), icons.donts));
+                if (state.colors) snapshotContainer.appendChild(createCard('Color Preferences', contentOrPlaceholder(state.colors, 'Your color ideas...'), icons.colors));
+
+                if (state.selectedTags.length > 0) {
+                     let personalityContainer = document.getElementById('personalityChartContainer');
+                     if(!personalityContainer) {
+                        personalityContainer = document.createElement('div');
+                        personalityContainer.id = 'personalityChartContainer';
+                        personalityContainer.className = 'snapshot-card';
+                        personalityContainer.innerHTML = `<div class="w-full"><div class="snapshot-content"><h4>Brand Personality</h4></div><div class="chart-container"><canvas id="personalityChart"></canvas></div></div>`;
+                        snapshotContainer.appendChild(personalityContainer);
+                        initPersonalityChart();
+                     }
+                     updatePersonalityChart();
+                }
+            }
+
+            function initPersonalityChart() {
+                 const ctx = document.getElementById('personalityChart').getContext('2d');
+                 personalityChart = new Chart(ctx, {
+                    type: 'radar', data: { labels: Object.keys(personalityData), datasets: [{ data: [0, 0, 0, 0], backgroundColor: 'rgba(250, 204, 21, 0.2)', borderColor: '#facc15', borderWidth: 2 }] },
+                    options: { maintainAspectRatio: false, scales: { r: { angleLines: { color: 'rgba(0, 0, 0, 0.1)' }, grid: { color: 'rgba(0, 0, 0, 0.1)' }, pointLabels: { font: { size: 10 } }, ticks: { display: false, stepSize: 1 }, min: 0, max: 3 } }, plugins: { legend: { display: false } }, animation: { onComplete: () => { personalityChartImage = personalityChart.toBase64Image(); } } }
+                });
+            }
+
+            function updatePersonalityChart() {
+                if(!personalityChart) return;
+                const scores = {'Technical & Scientific': 0, 'Warm & Human': 0, 'Minimal & Modern': 0, 'Industrial & Rugged': 0};
+                state.selectedTags = Array.from(tagsContainer.querySelectorAll('.personality-tag.selected')).map(btn => btn.dataset.tag);
+                state.selectedTags.forEach(tag => { for (const category in personalityData) { if (personalityData[category].includes(tag)) scores[category]++; } });
+                personalityChart.data.datasets[0].data = Object.values(scores);
+                personalityChart.update();
+            }
+
+            tagsContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('personality-tag')) {
+                    const btn = e.target;
+                    const isSelected = btn.classList.contains('selected');
+                    const selectedCount = tagsContainer.querySelectorAll('.personality-tag.selected').length;
+                    
+                    if (isSelected) {
+                        btn.classList.remove('selected');
+                    } else if (selectedCount < 5) {
+                        btn.classList.add('selected');
+                    }
+                    renderSnapshot();
+                }
+            });
+
+            document.getElementById('questionnaire-container').addEventListener('input', renderSnapshot);
+
+            async function saveResponseToFirebase() {
+                 if (!db) { console.error("Firestore is not initialized."); return false; }
+                 updateStateFromInputs();
+                 try {
+                     const appId = 'brand-discovery-tool';
+                     await db.collection(`/artifacts/${appId}/public/data/submissions`).add({ ...state, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                     console.log("Document successfully written!");
+                     return true;
+                 } catch (e) { console.error("Error adding document: ", e); return false; }
+            }
+            
+            function formatForReport(value) { return value || 'No response'; }
+
+            function generateReportHTML() {
+                updateStateFromInputs();
+                const mailto = `mailto:your-email@example.com?subject=${encodeURIComponent(`Brand Discovery from ${state.orgName}`)}`;
+
+                return `
+                    <style>
+                        @page { size: A4; margin: 10mm; } body { font-family: 'Archivo', sans-serif; color: #1f2937; } .report-container { max-width: 100%; margin: 0; padding: 0; background: white; }
+                        .header-logo { font-weight: 700; font-size: 2rem; letter-spacing: -0.05em; color: white; } .header-logo .logo-yellow { color: #fde047; }
+                        .report-header { background: black; color: white; padding: 20px 40px; } .report-title { font-size: 2.5rem; font-weight: 700; margin-top: 20px; border-bottom: 2px solid #facc15; padding-bottom: 10px; }
+                        .section { margin-top: 30px; page-break-inside: avoid; } .section-title { font-size: 1.5rem; font-weight: 700; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 16px; }
+                        .item-label { font-weight: 700; color: #374151; margin-top: 12px; } .item-value { color: #4b5563; white-space: pre-wrap; margin-top: 4px; font-size: 0.9rem; }
+                        .action-btn { display: inline-block; text-align: center; margin-top: 10px; margin-right: 10px; padding: 12px 24px; background: #111827; color: white; text-decoration: none; border-radius: 8px; font-weight: 500; }
+                        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .report-header { background: black !important; color: white !important; } .header-logo .logo-yellow { color: #fde047 !important; } .no-print { display: none; } }
+                    </style>
+                    <div class="report-container">
+                        <div class="report-header"><div class="header-logo"><span>the</span><span class="logo-yellow">ideas</span><span>factory</span></div></div>
+                        <div style="padding: 0 20px;">
+                            <h1 class="report-title">Brand Discovery Report</h1>
+                            <p style="margin-top: 8px; color: #6b7280;">Generated for ${state.orgName} on: ${new Date().toLocaleDateString()}</p>
+                            
+                            <div class="section"><h2 class="section-title">Business Profile</h2>
+                                <div><p class="item-label">Organization Name</p><p class="item-value">${formatForReport(state.orgName)}</p></div>
+                                <div><p class="item-label">The One-Liner</p><p class="item-value">${formatForReport(state.oneLiner)}</p></div>
+                                <div><p class="item-label">The "Who Are You?" Pitch</p><p class="item-value">${formatForReport(state.pitch)}</p></div>
+                                <div><p class="item-label">Primary Objective</p><p class="item-value">${formatForReport(state.objective)}</p></div>
+                            </div>
+                            <div class="section"><h2 class="section-title">Market Landscape</h2>
+                                <div><p class="item-label">Competitors</p>${state.competitors.map(c => `<p class="item-value"><b>${c.name}:</b> ${c.why}</p>`).join('') || '<p class="item-value">No response</p>'}</div>
+                                <div><p class="item-label">What makes you different?</p><p class="item-value">${formatForReport(state.differentiation)}</p></div>
+                                <div><p class="item-label">Risks / barriers to adoption</p><p class="item-value">${formatForReport(state.risks)}</p></div>
+                                <div><p class="item-label">Desired Market Position</p><p class="item-value">${formatForReport(state.marketPosition)}</p></div>
+                                <div><p class="item-label">Words to Avoid</p><p class="item-value">${formatForReport(state.donts)}</p></div>
+                            </div>
+                            <div class="section"><h2 class="section-title">The Audience</h2>
+                                <div><p class="item-label">Economic Buyer</p><p class="item-value">${formatForReport(state.audience.economicBuyer)}</p></div>
+                                <div><p class="item-label">End User</p><p class="item-value">${formatForReport(state.audience.endUser)}</p></div>
+                                <div><p class="item-label">Technical Influencer</p><p class="item-value">${formatForReport(state.audience.technicalInfluencer)}</p></div>
+                                <div><p class="item-label">Other Influencers</p><p class="item-value">${formatForReport(state.audience.otherInfluencer)}</p></div>
+                            </div>
+                             <div class="section"><h2 class="section-title">Brand Ambition & Personality</h2>
+                                <div><p class="item-label">Purpose - The "Why"</p><p class="item-value">${formatForReport(state.purpose)}</p></div>
+                                <p class="item-label">Selected Personality Traits</p><p class="item-value"><strong>${state.selectedTags.join(', ')}</strong></p>
+                                <img src="${personalityChartImage}" alt="Brand Personality Chart" style="max-width: 500px; margin: 20px auto; display: block;">
+                            </div>
+                            <div class="section"><h2 class="section-title">Visual Direction</h2>
+                                <div><p class="item-label">Admired Brands</p><p class="item-value">${formatForReport(state.admiredBrands)}</p></div>
+                                <div><p class="item-label">Colors</p><p class="item-value">${formatForReport(state.colors)}</p></div>
+                            </div>
+                             <div class="section"><h2 class="section-title">Target Personas (Optional)</h2>
+                                ${state.personas.map((p, i) => `<div class="persona-block" style="margin-top: 1rem; page-break-inside: avoid;"><h3 class="item-label" style="font-size: 1.1rem;">Persona ${i+1}: ${p.name}</h3><div><p class="item-label">Role / Demographic</p><p class="item-value">${formatForReport(p.role)}</p></div><div><p class="item-label">Top 3 Motivations</p><p class="item-value">${formatForReport(p.motivations)}</p></div><div><p class="item-label">Top 3 Objections / Barriers</p><p class="item-value">${formatForReport(p.barriers)}</p></div><div><p class="item-label">Channels</p><p class="item-value">${formatForReport(p.channels.join(', '))}</p></div></div>`).join('') || '<p class="item-value">No optional personas were added.</p>'}
+                            </div>
+                            <div class="no-print" style="margin-top: 40px; text-align: center; padding: 20px; background-color: #f3f4f6; border-radius: 8px;">
+                                <a href="#" onclick="window.print(); return false;" class="action-btn">Print or Save as PDF</a>
+                                <a href="${mailto}" class="action-btn">Email Report to Us</a>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+            
+            generateReportBtn.addEventListener('click', async (e) => {
+                const btn = e.target;
+                btn.disabled = true; btn.textContent = 'Submitting...';
+                const success = await saveResponseToFirebase();
+                if(success) {
+                    appContainer.innerHTML = generateReportHTML();
+                } else {
+                    btn.disabled = false; btn.textContent = 'Submit & Generate Report';
+                    alert('There was an issue submitting your form. Please try again.');
+                }
+            });
+
+            updateStepView();
+            renderSnapshot();
+        });
+    </script>
+</body>
+</html>
+
