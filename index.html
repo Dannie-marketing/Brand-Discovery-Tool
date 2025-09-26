@@ -1,595 +1,821 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-AU">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Brand Discovery Tool</title>
+    <title>Turntable Finder Assessment</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700&display=swap" rel="stylesheet">
-    <!-- Firebase Libraries (UMD version for broad compatibility) -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-
-    <!-- Chosen Palette: TIF Yellow & Black -->
-    <!-- Application Structure Plan: A multi-step interactive wizard guiding users through a detailed brand questionnaire. A dynamic, graphical "Brand Snapshot" on the side provides real-time, infographic-style feedback, including a personality radar chart. This structure makes a complex form digestible and visually engaging, culminating in a comprehensive data submission and a client-facing report. -->
-    <!-- Visualization & Content Choices: Report Info: Brand Personality -> Goal: Compare -> Viz/Presentation: Interactive Radar Chart (Chart.js). Other qualitative data is presented in visually distinct cards with icons to create an infographic feel. This approach ensures all data is captured effectively and presented in an engaging manner. -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals with Muted Blue Accent -->
+    <!-- Application Structure Plan: To implement a teaser/reveal flow, the application now uses a multi-step lead capture. An initial form gets Name/Email. After the assessment, a new "teaser" screen reveals the recommended product *category* and presents the final form to unlock full details. This progressive disclosure model is designed to maximize lead completion rate. -->
+    <!-- Visualization & Content Choices: The application uses interactive HTML/CSS components. Report Info: User contact details. Goal: Use a teaser to encourage final detail submission. Presentation: A new teaser screen is added between the assessment and the results. The form is split into two parts across the user journey. Interaction: User completes the assessment, sees a teaser, then fills a final form to view their detailed result. Justification: This leverages user curiosity and investment in the process to capture more detailed lead information than a single, long upfront form might. Library/Method: Vanilla JS for logic and DOM manipulation. -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
         body {
-            font-family: 'Archivo', sans-serif;
-            background-color: #f3f4f6; /* gray-100 */
-            color: #1f2937; /* gray-800 */
+            font-family: 'Inter', sans-serif;
+            background-color: #F8F9FA;
         }
-        .form-input, .form-textarea, .form-checkbox, .form-radio {
+        .main-container {
             background-color: #FFFFFF;
-            border: 1px solid #d1d5db; /* gray-300 */
-            border-radius: 0.5rem;
-            color: #111827; /* gray-900 */
-            padding: 0.75rem 1rem;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            width: 100%;
+            border: 1px solid #E5E7EB;
         }
-        .form-input:focus, .form-textarea:focus {
-            outline: none;
-            border-color: #facc15; /* yellow-400 */
-            box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.4);
+        .quiz-option {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, border-color 0.2s ease-in-out;
         }
-        .form-checkbox, .form-radio {
-            width: 1.25em;
-            height: 1.25em;
-            padding: 0;
-            accent-color: #111827; /* gray-900 */
+        .quiz-option:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        .nav-button, .add-persona-btn {
-            background-color: #111827; /* gray-900 */
-            color: #FFFFFF;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
-            font-weight: 500;
-            transition: background-color 0.2s;
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
         }
-        .nav-button:hover:not(:disabled), .add-persona-btn:hover:not(:disabled) {
-            background-color: #000000;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        .nav-button:disabled, .add-persona-btn:disabled {
-            background-color: #9ca3af; /* gray-400 */
-            cursor: not-allowed;
+        .input-field {
+            margin-top: 0.25rem; display: block; width: 100%; padding: 0.5rem 0.75rem; background-color: white; border: 1px solid #D1D5DB; border-radius: 0.375rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
         }
-        .personality-tag {
-            cursor: pointer;
-            border: 1px solid #6b7280; /* gray-500 */
-            color: #374151; /* gray-700 */
-            transition: background-color 0.2s, color 0.2s;
+        .input-field:focus {
+            outline: none; ring-width: 2px; ring-color: #3B82F6; border-color: #3B82F6;
         }
-        .personality-tag.selected {
-            background-color: #111827; /* gray-900 */
-            color: #facc15; /* yellow-400 */
-            border-color: #111827;
+        /* Stage Progress Bar */
+        .stage-progress-bar .stage {
+            flex: 1; text-align: center; color: #9CA3AF; position: relative;
         }
-        .chart-container {
-            position: relative;
-            width: 100%;
-            height: 300px;
-            max-height: 350px;
+         .stage-progress-bar .stage .dot {
+            width: 1.25rem; height: 1.25rem; border-radius: 50%; background-color: #E5E7EB; margin: 0 auto 0.5rem auto; border: 3px solid #E5E7EB; transition: all 0.3s;
         }
-        .snapshot-placeholder {
-            font-style: italic;
-            color: #9ca3af; /* gray-400 */
+        .stage-progress-bar .stage .line {
+            height: 4px; background-color: #E5E7EB; margin: 0 auto; transition: background-color 0.3s;
+            position: absolute; width: calc(100% - 2rem); top: 0.625rem; left: calc(50% + 1rem); z-index: -1;
         }
-        .snapshot-card {
-            background-color: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.75rem;
-            padding: 1rem;
-            display: flex;
-            align-items: flex-start;
-            gap: 0.75rem;
+        .stage-progress-bar .stage:last-child .line {
+            display: none;
         }
-        .snapshot-icon {
-            flex-shrink: 0;
-            width: 1.5rem;
-            height: 1.5rem;
-            color: #facc15;
+        .stage-progress-bar .stage.active .dot {
+            background-color: #fff; border-color: #3B82F6;
         }
-        .snapshot-content h4 {
-            font-weight: 600;
-            color: #374151;
-            font-size: 0.875rem;
+        .stage-progress-bar .stage.completed .dot {
+             background-color: #3B82F6; border-color: #3B82F6;
         }
-        .snapshot-content p, .snapshot-content ul {
-            color: #6b7280;
-            font-size: 0.875rem;
-            margin-top: 0.25rem;
-            word-break: break-word;
+         .stage-progress-bar .stage.completed .line {
+            background-color: #3B82F6;
         }
-        .header-logo {
-            font-weight: 700;
-            font-size: 2.25rem;
-            letter-spacing: -0.05em;
-            color: white;
+        .stage-progress-bar .stage.active .label {
+            color: #1F2937; font-weight: 600;
         }
-        .header-logo .logo-yellow {
-            color: #fde047; /* yellow-300 */
-        }
-        .persona-block {
-            border-left: 3px solid #facc15;
-            padding-left: 1.5rem;
-            margin-top: 2rem;
+        .stage-progress-bar .stage.completed .label {
+            color: #3B82F6;
         }
     </style>
 </head>
-<body class="min-h-screen">
-    <div id="app-container">
-        <header class="bg-black py-4">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                 <div class="header-logo">
-                    <span>the</span><span class="logo-yellow">ideas</span><span>factory</span>
+<body class="text-gray-800 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-3xl mx-auto">
+        <div id="stage-progress-container" class="mb-6 hidden">
+             <div class="stage-progress-bar flex items-center justify-between">
+                <div class="stage" data-stage="1"><div class="dot"></div><div class="label text-sm">Welcome</div><div class="line"></div></div>
+                <div class="stage" data-stage="2"><div class="dot"></div><div class="label text-sm">Your Details</div><div class="line"></div></div>
+                <div class="stage" data-stage="3"><div class="dot"></div><div class="label text-sm">Assessment</div><div class="line"></div></div>
+                <div class="stage" data-stage="4"><div class="dot"></div><div class="label text-sm">Finalise</div><div class="line"></div></div>
+                <div class="stage" data-stage="5"><div class="dot"></div><div class="label text-sm">Recommendation</div></div>
+            </div>
+        </div>
+        
+        <div class="main-container rounded-2xl">
+            <div id="start-screen" class="text-center p-8 fade-in">
+                <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">What's the Right Turntable for Your Home?</h1>
+                <p class="text-lg text-gray-600 mb-8 max-w-xl mx-auto">This short assessment will help you identify the ideal solution for your space, needs, and style, making parking effortless and safer.</p>
+                <button id="go-to-form-btn" class="bg-blue-600 text-white font-bold py-3 px-10 rounded-full text-lg hover:bg-blue-700 transition-colors duration-300 shadow-md hover:shadow-lg">
+                    Let's Get Started
+                </button>
+            </div>
+
+            <div id="initial-form-screen" class="hidden p-8 fade-in">
+                <div class="text-center mb-8">
+                    <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Let's Get Started</h1>
+                    <p class="text-lg text-gray-600 max-w-xl mx-auto">Just a couple of details, then the assessment will begin.</p>
+                </div>
+                <form id="initial-lead-form" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                            <input type="text" id="name" name="name" required class="input-field">
+                        </div>
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
+                            <input type="email" id="email" name="email" required class="input-field">
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-center gap-4 pt-4">
+                        <button type="button" class="back-to-start-btn text-gray-600 font-bold py-3 px-8 rounded-full hover:bg-gray-100 transition-colors">Back to Start</button>
+                        <button type="submit" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-blue-700 transition-colors duration-300 shadow-md">
+                            Start Assessment
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="assessment-screen" class="hidden p-6 md:p-10 fade-in">
+                <div class="text-center mb-8">
+                    <h2 id="question-title" class="text-2xl md:text-3xl font-bold mb-2"></h2>
+                    <p id="question-subtitle" class="text-gray-500"></p>
+                </div>
+                <div id="options-container" class="space-y-4">
+                </div>
+                <div class="text-center mt-8">
+                    <button type="button" class="back-to-start-btn text-gray-600 font-bold py-2 px-6 rounded-full hover:bg-gray-100 transition-colors">Back to Start</button>
                 </div>
             </div>
-        </header>
-        <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:px-8">
-            <div class="text-center mb-8">
-                <h1 class="text-4xl font-bold text-gray-900">Brand Discovery Tool</h1>
-                <p class="mt-2 text-lg text-gray-600">An interactive first step in our Brand Starter Process.</p>
+
+            <div id="teaser-details-screen" class="hidden p-8 fade-in">
+                <div class="text-center mb-8">
+                    <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-2">Your Recommendation is Ready!</h1>
+                    <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-r-lg inline-block my-4">
+                        <p class="font-bold text-lg" id="teaser-text">Based on your needs, we recommend the...</p>
+                    </div>
+                    <p class="text-lg text-gray-600 max-w-xl mx-auto">Complete your details below to unlock the full recommendation, including pricing, technical specs, and downloadable files.</p>
+                </div>
+                <form id="final-lead-form" class="space-y-4">
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
+                            <input type="tel" id="phone" name="phone" required class="input-field">
+                        </div>
+                        <div>
+                            <label for="location" class="block text-sm font-medium text-gray-700">Location (Suburb/City)</label>
+                            <input type="text" id="location" name="location" required class="input-field">
+                        </div>
+                    </div>
+                    <div id="homeowner-fields" class="space-y-4">
+                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="date" class="block text-sm font-medium text-gray-700">Expected Deployment Date</label>
+                                <input type="date" id="date" name="date" class="input-field">
+                            </div>
+                            <div>
+                                <label for="use_case" class="block text-sm font-medium text-gray-700">Primary Use</label>
+                                <select id="use_case" name="use_case" class="input-field">
+                                    <option value="">Please select...</option>
+                                    <option value="tight_driveway">Solving a tight driveway</option>
+                                    <option value="garage_access">Easier garage access</option>
+                                    <option value="car_collection">Car collection display</option>
+                                    <option value="safety">Avoiding reversing</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="comments" class="block text-sm font-medium text-gray-700">Additional Information (Optional)</label>
+                        <textarea id="comments" name="comments" rows="3" class="input-field" placeholder="Any specific requirements or questions?"></textarea>
+                    </div>
+                    <div class="flex items-center justify-center gap-4 pt-4">
+                        <button type="submit" id="final-submit-btn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-blue-700 transition-colors duration-300 shadow-md">
+                            Unlock Full Recommendation
+                        </button>
+                    </div>
+                </form>
             </div>
 
-            <main class="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                <div id="questionnaire-container" class="lg:col-span-3 bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200">
-                    
-                    <div id="step-1" class="step">
-                        <h2 class="text-2xl font-bold text-gray-900 mb-1">Part 1: The Business Profile</h2>
-                        <p class="mb-6 text-gray-600">Let's start with the fundamentals. This helps us understand the core of who you are and what you do.</p>
-                        <div class="space-y-6">
-                            <div><label for="orgName" class="block text-sm font-medium text-gray-700 mb-1">Organization Name</label><input type="text" id="orgName" class="form-input" placeholder="e.g., Acme Innovations"></div>
-                            <div><label for="oneLiner" class="block text-sm font-medium text-gray-700 mb-1">The One-Liner</label><input type="text" id="oneLiner" class="form-input" placeholder="We help [who] do [what] by [benefit]."></div>
-                            <div><label for="pitch" class="block text-sm font-medium text-gray-700 mb-1">The "Who Are You?" Pitch</label><textarea id="pitch" rows="3" class="form-textarea" placeholder="In a short paragraph, describe your organization's story."></textarea></div>
-                            <div><label for="objective" class="block text-sm font-medium text-gray-700 mb-1">Primary Objective</label><input type="text" id="objective" class="form-input" placeholder="What is the single most important business outcome?"></div>
-                        </div>
-                    </div>
+            <div id="results-screen" class="hidden p-6 md:p-10 fade-in">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-900 text-center mb-2">Your Turntable Recommendation</h2>
+                <p class="text-gray-600 text-center mb-8">Thank you! Based on your answers, here is the recommended solution for your home.</p>
 
-                    <div id="step-2" class="step hidden">
-                        <h2 class="text-2xl font-bold text-gray-900 mb-1">Part 2: The Market Landscape</h2>
-                        <p class="mb-6 text-gray-600">Help us understand where you fit in. Knowing your competitors and your unique edge is key to positioning your brand.</p>
-                        <div class="space-y-8">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Top 3 competitors / alternatives</label>
-                                <div class="space-y-4">
-                                    <div class="p-4 border rounded-lg bg-gray-50">
-                                        <input type="text" id="competitor1_name" class="form-input mb-2" placeholder="Competitor 1 Name (Required)">
-                                        <textarea id="competitor1_why" rows="2" class="form-textarea" placeholder="Why they're a competitor..."></textarea>
-                                    </div>
-                                    <div class="p-4 border rounded-lg bg-gray-50">
-                                        <input type="text" id="competitor2_name" class="form-input mb-2" placeholder="Competitor 2 Name (Required)">
-                                        <textarea id="competitor2_why" rows="2" class="form-textarea" placeholder="Why they're a competitor..."></textarea>
-                                    </div>
-                                    <div class="p-4 border rounded-lg bg-gray-50">
-                                        <input type="text" id="competitor3_name" class="form-input mb-2" placeholder="Competitor 3 Name (Required)">
-                                        <textarea id="competitor3_why" rows="2" class="form-textarea" placeholder="Why they're a competitor..."></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                            <div><label for="differentiation" class="block text-sm font-medium text-gray-700 mb-1">What makes you different? (3 bullets)</label><input type="text" id="differentiation" class="form-input" placeholder="Enter as comma-separated list, e.g., Our patented tech, 24/7 support, ..."></div>
-                            <div><label for="risks" class="block text-sm font-medium text-gray-700 mb-1">Top 3 risks / barriers to adoption</label><input type="text" id="risks" class="form-input" placeholder="e.g., High cost, Lack of awareness, Market saturation"></div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">One position you want to own in market</label>
-                                <div class="space-y-2" id="marketPosition">
-                                    <label class="flex items-center"><input type="radio" name="position" value="Most reliable / proven choice" class="form-radio mr-2"><span class="text-sm">Most reliable / proven choice</span></label>
-                                    <label class="flex items-center"><input type="radio" name="position" value="Most innovative / breakthrough" class="form-radio mr-2"><span class="text-sm">Most innovative / breakthrough</span></label>
-                                    <label class="flex items-center"><input type="radio" name="position" value="Best value (price / ROI)" class="form-radio mr-2"><span class="text-sm">Best value (price / ROI)</span></label>
-                                    <label class="flex items-center"><input type="radio" name="position" value="Ethical / sustainable partner" class="form-radio mr-2"><span class="text-sm">Ethical / sustainable partner</span></label>
-                                    <label class="flex items-center"><input type="radio" name="position" value="Niche specialist" class="form-radio mr-2"><span class="text-sm">Niche specialist</span></label>
-                                </div>
-                            </div>
-                             <div><label for="donts" class="block text-sm font-medium text-gray-700 mb-1">Words you absolutely DON’T want associated with your brand (Optional)</label><input type="text" id="donts" class="form-input" placeholder="e.g., Cheap, Slow, Complicated"></div>
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-6 md:p-8">
+                    <div class="md:flex md:items-center md:space-x-8">
+                        <div class="md:w-1/3 mb-6 md:mb-0">
+                            <img id="result-image" class="rounded-lg shadow-md" src="https://placehold.co/600x400/e2e8f0/e2e8f0?text=." alt="Recommended Turntable">
                         </div>
-                    </div>
-
-                    <div id="step-3" class="step hidden">
-                        <h2 class="text-2xl font-bold text-gray-900 mb-1">Part 3: The Audience</h2>
-                        <p class="mb-6 text-gray-600">Describe the key people involved in choosing and using your product or service.</p>
-                        <div class="space-y-4">
-                            <div>
-                                <label for="economicBuyer" class="block text-sm font-medium text-gray-700 mb-1">The Economic Buyer</label>
-                                <textarea id="economicBuyer" rows="3" class="form-textarea" placeholder="Who decides to purchase and controls the budget?"></textarea>
-                            </div>
-                            <div>
-                                <label for="endUser" class="block text-sm font-medium text-gray-700 mb-1">The End Beneficiary or User</label>
-                                <textarea id="endUser" rows="3" class="form-textarea" placeholder="Who directly uses the product/service and gets value from it?"></textarea>
-                            </div>
-                            <div>
-                                <label for="technicalInfluencer" class="block text-sm font-medium text-gray-700 mb-1">The Technical Influencer</label>
-                                <textarea id="technicalInfluencer" rows="3" class="form-textarea" placeholder="Who evaluates the technical aspects and influences the decision? (e.g., IT, engineering)"></textarea>
-                            </div>
-                             <div>
-                                <label for="otherInfluencer" class="block text-sm font-medium text-gray-700 mb-1">Other Key Influencers</label>
-                                <textarea id="otherInfluencer" rows="3" class="form-textarea" placeholder="Are there other groups or roles that have a say in the decision?"></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="step-4" class="step hidden">
-                        <h2 class="text-2xl font-bold text-gray-900 mb-1">Part 4: Brand Ambition & Personality</h2>
-                        <p class="mb-6 text-gray-600">Define your brand's 'why' and select 3-5 adjectives for its personality.</p>
-                         <div class="space-y-6">
-                            <div><label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose - The "Why"</label><textarea id="purpose" rows="4" class="form-textarea" placeholder="Beyond making money, what is the higher-order reason this company exists?"></textarea></div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Brand Personality</label>
-                                <div id="personality-tags-container" class="flex flex-wrap gap-3"></div>
-                            </div>
+                        <div class="md:w-2/3">
+                            <h3 id="result-title" class="text-2xl font-bold text-blue-700 mb-2"></h3>
+                            <p id="result-description" class="text-gray-700 mb-4"></p>
                         </div>
                     </div>
                     
-                    <div id="step-5" class="step hidden">
-                        <h2 class="text-2xl font-bold text-gray-900 mb-1">Part 5: Visual Direction</h2>
-                        <p class="mb-6 text-gray-600">Share any initial aesthetic preferences you have. This provides a starting point for our creative exploration.</p>
-                         <div class="space-y-6">
-                            <div><label for="admiredBrands" class="block text-sm font-medium text-gray-700 mb-1">Admired Brands</label><textarea id="admiredBrands" rows="3" class="form-textarea" placeholder="List 2-3 brands you admire and why."></textarea></div>
-                            <div><label for="colors" class="block text-sm font-medium text-gray-700 mb-1">Colors</label><input type="text" id="colors" class="form-input" placeholder="Are there any colors you're drawn to or wish to avoid?"></div>
-                        </div>
-                    </div>
-
-                    <div id="step-6" class="step hidden">
-                        <h2 class="text-2xl font-bold text-gray-900 mb-1">Part 6: Target Personas (Optional)</h2>
-                        <p class="mb-6 text-gray-600">If you have more detailed personas, you can add them here. This section is optional.</p>
-                        <div id="personas-container">
-                            <!-- Persona 1 -->
-                            <div id="persona1-block" class="persona-block">
-                                <h3 class="text-xl font-bold text-gray-800 mb-4">Persona 1</h3>
-                                <div class="space-y-6">
-                                    <div><label for="persona1_name" class="block text-sm font-medium text-gray-700 mb-1">Persona name / label</label><input type="text" id="persona1_name" class="form-input" placeholder="e.g., Technical Team Lead"></div>
-                                    <div><label for="persona1_role" class="block text-sm font-medium text-gray-700 mb-1">Role / demographic / company type</label><input type="text" id="persona1_role" class="form-input" placeholder="e.g., Manages a team of 10 engineers in a mid-size tech firm"></div>
-                                    <div><label for="persona1_motivations" class="block text-sm font-medium text-gray-700 mb-1">Top 3 motivations (what they need)</label><input type="text" id="persona1_motivations" class="form-input" placeholder="Comma-separated, e.g., Reliability, Scalability, Good documentation"></div>
-                                    <div><label for="persona1_barriers" class="block text-sm font-medium text-gray-700 mb-1">Top 3 objections / barriers</label><input type="text" id="persona1_barriers" class="form-input" placeholder="Comma-separated, e.g., High cost, Integration complexity, Lack of case studies"></div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Where they spend time / channels</label>
-                                        <div id="persona1_channels" class="grid grid-cols-2 gap-x-4 gap-y-2"></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div id="persona2-block" class="persona-block hidden">
-                                <h3 class="text-xl font-bold text-gray-800 mb-4">Persona 2</h3>
-                                <div class="space-y-6">
-                                    <!-- Fields will be dynamically injected -->
-                                </div>
-                            </div>
-                            <div id="persona3-block" class="persona-block hidden">
-                                <h3 class="text-xl font-bold text-gray-800 mb-4">Persona 3</h3>
-                                <div class="space-y-6">
-                                     <!-- Fields will be dynamically injected -->
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mt-6 text-center">
-                            <button id="addPersonaBtn" class="add-persona-btn text-sm">Add Persona 2</button>
-                        </div>
-                    </div>
-
-                    <div id="step-7" class="step hidden text-center">
-                        <h2 class="text-3xl font-bold text-gray-900 mb-4">Your Brand Discovery is Complete!</h2>
-                        <p class="text-lg text-gray-600 mb-6">You've taken a fantastic first step in defining your brand. Your responses have been securely submitted. You can now generate a local copy for your records.</p>
-                        <p class="text-lg text-gray-700 font-medium mb-8">Ready to take the next step? Let's build your brand together.</p>
-                        <button id="generateReportBtn" class="inline-block bg-black text-yellow-400 py-3 px-8 rounded-lg font-bold text-lg hover:bg-gray-800 transition-colors">Submit & Generate Report</button>
-                    </div>
-
-                    <div class="mt-8 flex justify-between items-center">
-                        <button id="prevBtn" class="nav-button" disabled>Previous</button>
-                        <div id="step-indicator" class="text-sm font-medium text-gray-500">Step 1 of 7</div>
-                        <button id="nextBtn" class="nav-button">Next</button>
-                    </div>
+                    <div id="result-benefits" class="mt-8"></div>
+                    <div id="result-details" class="mt-6 pt-6 border-t border-gray-200"></div>
+                    <div id="result-pricing" class="mt-6 pt-6 border-t border-gray-200"></div>
+                    <div id="result-downloads" class="mt-6 pt-6 border-t border-gray-200"></div>
                 </div>
+                
+                <div class="text-center mt-8 space-y-4 md:space-y-0 md:space-x-4">
+                     <p class="text-gray-600">Our team will be in touch shortly with your formal quote.</p>
+                </div>
+                <div class="text-center mt-6">
+                    <button type="button" class="back-to-start-btn text-gray-600 font-bold py-2 px-6 rounded-full hover:bg-gray-100 transition-colors">Start Over</button>
+                </div>
+            </div>
 
-                <aside id="snapshot-panel" class="lg:col-span-2 bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200 sticky top-8 self-start">
-                    <h3 class="text-2xl font-bold text-gray-900 mb-4 border-b-2 border-yellow-400 pb-3">Brand Snapshot</h3>
-                    <div id="snapshot-container" class="space-y-4 max-h-[75vh] overflow-y-auto pr-2">
-                        <!-- Snapshot content will be dynamically generated here -->
-                    </div>
-                </aside>
-            </main>
+             <div id="professional-results-screen" class="hidden p-6 md:p-10 fade-in">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-900 text-center mb-2">Technical Recommendation & Resources</h2>
+                <p class="text-gray-600 text-center mb-8">Thank you! Based on the project requirements, here is the recommended system and associated files.</p>
+                
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-6 md:p-8">
+                     <div class="md:flex md:space-x-8">
+                         <div class="md:w-1/3 mb-6 md:mb-0">
+                            <img id="prof-result-image" class="rounded-lg shadow-md" src="https://placehold.co/600x400/e2e8f0/e2e8f0?text=." alt="Recommended Turntable">
+                        </div>
+                         <div class="md:w-2/3">
+                            <h3 id="prof-result-title" class="text-2xl font-bold text-blue-700 mb-2"></h3>
+                            <p id="prof-result-description" class="text-gray-700 mb-4"></p>
+                        </div>
+                     </div>
+
+                    <div id="prof-result-specs" class="mt-6 pt-6 border-t border-gray-200"></div>
+                    <div id="prof-result-downloads" class="mt-6 pt-6 border-t border-gray-200"></div>
+                </div>
+                
+                 <div class="text-center mt-8 space-y-4">
+                    <p class="text-gray-600">We have received your details and will send a formal quote for your tender process shortly.</p>
+                 </div>
+                 <div class="text-center mt-6">
+                    <button type="button" class="back-to-start-btn text-gray-600 font-bold py-2 px-6 rounded-full hover:bg-gray-100 transition-colors">Start New Assessment</button>
+                </div>
+            </div>
         </div>
     </div>
-    
+
     <script>
-        // --- START: YOUR FIREBASE CONFIGURATION ---
-        const firebaseConfig = {
-          apiKey: "AIzaSyAEJ6wohox9MlYvTMHFOFnvNnXQa05B5RI",
-          authDomain: "brand-discovery-tool.firebaseapp.com",
-          projectId: "brand-discovery-tool",
-          storageBucket: "brand-discovery-tool.appspot.com",
-          messagingSenderId: "838680368434",
-          appId: "1:838680368434:web:63f24e8e9405f62d4f732b"
+        const icons = {
+            noCivilWorks: '<svg class="w-8 h-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h7.5" /></svg>',
+            quickInstall: '<svg class="w-8 h-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>',
+            portable: '<svg class="w-8 h-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v.958m12.026 11.177a48.529 48.529 0 01-10.026 0m10.026 0L12 14.25" /></svg>',
+            seamless: '<svg class="w-8 h-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.916 17.916 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" /></svg>',
+            permanent: '<svg class="w-8 h-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 16.875h3.375m0 0h3.375m-3.375 0V13.5m0 3.375v3.375M6 10.5h2.25a2.25 2.25 0 002.25-2.25V6a2.25 2.25 0 00-2.25-2.25H6A2.25 2.25 0 003.75 6v2.25A2.25 2.25 0 006 10.5zm0 9.75h2.25A2.25 2.25 0 0010.5 18v-2.25a2.25 2.25 0 00-2.25-2.25H6a2.25 2.25 0 00-2.25 2.25V18A2.25 2.25 0 006 20.25zm9.75-9.75H18a2.25 2.25 0 002.25-2.25V6A2.25 2.25 0 0018 3.75h-2.25A2.25 2.25 0 0013.5 6v2.25a2.25 2.25 0 002.25 2.25z" /></svg>',
+            durable: '<svg class="w-8 h-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286zm0 13.036h.008v.008h-.008v-.008z" /></svg>',
+            custom: '<svg class="w-8 h-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.47 2.118 2.25 2.25 0 01-2.47-2.118c0-.62.28-1.186.74-1.544a3 3 0 005.78-1.128 2.25 2.25 0 012.47-2.118 2.25 2.25 0 012.47 2.118c0 .62-.28 1.186-.74 1.544a3 3 0 00-5.78 1.128zM12.75 21a3 3 0 005.78-1.128 2.25 2.25 0 012.47-2.118 2.25 2.25 0 012.47 2.118c0 .62-.28 1.186-.74 1.544a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.47 2.118 2.25 2.25 0 01-2.47-2.118c0-.62.28-1.186.74-1.544a3 3 0 005.78-1.128z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 9.75a3 3 0 00-3 3m0 0a3 3 0 01-3-3m3 3a3 3 0 003-3m-3 3a3 3 0 013-3m-9.75 6.75a3 3 0 003-3m-3 3a3 3 0 013-3m3 3a3 3 0 003-3m3 3a3 3 0 01-3-3m-3 3a3 3 0 00-3-3m-6 9a3 3 0 003-3" /></svg>',
+            invisible: '<svg class="w-8 h-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>',
+            heavyDuty: '<svg class="w-8 h-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>',
+            dualVehicle: '<svg class="w-8 h-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L2.25 12l4.179 2.25M6.429 15.75l5.571 3 5.571-3m-11.142 0L2.25 18l4.179 2.25" /></svg>',
         };
-        // --- END: YOUR FIREBASE CONFIGURATION ---
+        
+        const assessmentData = {
+            'installation': {
+                id: 'installation',
+                title: "Installation Preference",
+                subtitle: "Are you ready for a permanent, integrated solution, or do you prefer on-surface convenience?",
+                options: [
+                    { value: 'inground', text: "Yes, I want a seamless, in-ground look.", description: "I'm prepared for the necessary civil works to achieve a premium, integrated finish." },
+                    { value: 'onsurface', text: "No, I prefer a straightforward on-surface solution.", description: "I want to avoid construction and install a turntable directly on my existing surface." }
+                ]
+            },
+            'ctx_finish': {
+                id: 'ctx_finish',
+                title: "CTX Finish Preference",
+                subtitle: "What style best suits your project's aesthetic?",
+                options: [
+                    { value: 'standard', text: "Standard Chequer Plate", description: "A durable, hot-dipped galvanised steel finish. Functional and built to last." },
+                    { value: 'custom', text: "Custom Infill Finish", description: "To match the existing surface (pavers, tiles, concrete, etc.) for a completely seamless look." }
+                ]
+            },
+            'ctx_vehicle': {
+                id: 'ctx_vehicle',
+                title: "Vehicle Requirements",
+                subtitle: "What will the turntable need to accommodate?",
+                options: [
+                    { value: 'standard_single', text: "One Standard Car/SUV", description: "A single vehicle weighing less than 4,000 kg." },
+                    { value: 'large_single', text: "One Heavy or Large Vehicle", description: "A vehicle heavier than 4,000 kg or with a long wheelbase." },
+                    { value: 'dual_vehicle', text: "Two Vehicles", description: "To accommodate two standard-sized vehicles at once." }
+                ]
+            },
+            'ctx_team': {
+                id: 'ctx_team',
+                title: "Who is involved in your project?",
+                subtitle: "This helps us understand how to best support your installation.",
+                options: [
+                    { value: 'homeowner', text: "I am the homeowner managing the project." },
+                    { value: 'architect', text: "I'm working with an Architect/Designer." },
+                    { value: 'builder', text: "I'm working with a Builder." },
+                    { value: 'professional', text: "I am the Architect/Builder for this project." }
+                ]
+            }
+        };
 
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
+        const resultsData = {
+            spinsy: {
+                title: "Spinsy On-Surface Turntable",
+                image_url: "https://placehold.co/600x400/dbeafe/4c51bf?text=Spinsy",
+                description: "You prioritise convenience, simplicity, and flexibility. The Spinsy is the perfect choice because it requires no civil work, can be installed quickly on almost any flat surface, and can even be moved to a new home if your plans change.",
+                benefits: [ { icon: icons.noCivilWorks, text: 'No Civil Works' }, { icon: icons.quickInstall, text: 'Quick Installation' }, { icon: icons.portable, text: 'Portable Design' } ],
+                price_info: { base: 26500, options: [ { id: 'ramps', label: 'Add Optional Ramps', cost: 1500 } ], note: '+ shipping (cost TBD)' },
+                details: `<h4 class="text-xl font-bold mb-4 text-gray-800">Why Spinsy is the right fit:</h4>
+                    <ul class="space-y-3 text-gray-600">
+                        <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>No Civil Work Required:</strong> A true on-surface model, saving you time, complexity, and the cost of excavation.</div></li>
+                        <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Quick & Easy Installation:</strong> Can be installed and ready to use almost immediately on your existing driveway, in a carport, or garage.</div></li>
+                        <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Portable:</strong> If you move, you can take your Spinsy with you—a practical, long-term investment.</div></li>
+                    </ul>
+                    <div class="mt-6 pt-4 border-t border-gray-200"><p class="font-semibold"><strong>Model:</strong> Spinsy SMLP 45 (4.5m diameter, 3000kg capacity)</p></div>`,
+                downloads: [ { name: "Spinsy - Brochure.pdf", url: "#" }, { name: "Spinsy - Tech Specs.pdf", url: "#" }, { name: "ATT - SPINSY - 3 FOLD BROCHURE - LITE.pdf", url: "#" } ]
+            },
+            ctx: {
+                title: "CTX Range In-Ground Turntable",
+                image_url: "https://placehold.co/600x400/e0e7ff/4338ca?text=CTX",
+                description: "Your perfect match. It offers a robust hot-dipped galvanised chequer plate finish and is engineered for vehicles up to 4000 kg. You value a seamless aesthetic and are ready to invest in a permanent, fully integrated feature.",
+                benefits: [ { icon: icons.seamless, text: 'Seamless Finish' }, { icon: icons.permanent, text: 'Permanent Solution' }, { icon: icons.durable, text: 'Durable Build' } ],
+                price_info: { base: 30000, options: [ { id: 'diameter', label: 'Select Diameter:', type: 'select', values: [ { text: '4.0m', cost: 0 }, { text: '4.5m', cost: 2000 }, { text: '4.8m', cost: 3500 } ] } ], note: 'Final cost depends on options.', helper: '<strong>4.0m:</strong> Ideal for standard sedans (e.g., Toyota Camry, Honda Civic).<br><strong>4.5m / 4.8m:</strong> Recommended for larger sedans, utes, and most SUVs (e.g., Toyota LandCruiser Prado, Ford Ranger).' },
+                details: `<h4 class="text-xl font-bold mb-4 text-gray-800">Key Features:</h4>
+                    <ul class="space-y-3 text-gray-600">
+                         <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Permanent Solution:</strong> An in-ground installation for a sleek, flush finish.</div></li>
+                         <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Durable Finish:</strong> Comes with a robust hot-dipped galvanised chequer plate surface.</div></li>
+                         <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Standard Capacity:</strong> Engineered for single standard cars and SUVs up to 4000 kg.</div></li>
+                    </ul>
+                     <div class="mt-6 pt-4 border-t border-gray-200"><p class="font-semibold"><strong>Available Diameters:</strong> 4.0m, 4.5m, 4.8m</p><p class="font-semibold"><strong>Load Capacity:</strong> 4,000 kg</p></div>`,
+                downloads: [{ name: "CTX_Turntable_Specification.pdf", url: "#" }]
+            },
+            ctx_pr: {
+                title: "CTX-PR Range In-Ground Turntable",
+                image_url: "https://placehold.co/600x400/e0e7ff/4338ca?text=CTX-PR",
+                description: "Designed for you. It comes with a 100mm rebate that allows you to fill the surface with your own materials (pavers, tiles, concrete) for a completely seamless look.",
+                benefits: [ { icon: icons.custom, text: 'Fully Customisable' }, { icon: icons.invisible, text: 'Invisible Look' }, { icon: icons.permanent, text: 'Permanent Solution' } ],
+                price_info: { base: 32000, options: [ { id: 'diameter', label: 'Select Diameter:', type: 'select', values: [ { text: '4.0m', cost: 0 }, { text: '4.5m', cost: 2000 }, { text: '4.8m', cost: 3500 } ] } ], note: 'Final cost depends on options.', helper: '<strong>4.0m:</strong> Ideal for standard sedans (e.g., Toyota Camry, Honda Civic).<br><strong>4.5m / 4.8m:</strong> Recommended for larger sedans, utes, and most SUVs (e.g., Toyota LandCruiser Prado, Ford Ranger).' },
+                details: `<h4 class="text-xl font-bold mb-4 text-gray-800">Key Features:</h4>
+                     <ul class="space-y-3 text-gray-600">
+                         <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Ultimate Customisation:</strong> Features a 100mm rebate to be filled with your custom surface material.</div></li>
+                         <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Invisible Look:</strong> Achieves a completely seamless integration with your driveway or garage.</div></li>
+                         <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Standard Capacity:</strong> Perfect for single standard cars and SUVs up to 4000 kg.</div></li>
+                    </ul>
+                    <div class="mt-6 pt-4 border-t border-gray-200"><p class="font-semibold"><strong>Available Diameters:</strong> 4.0m, 4.5m, 4.8m</p><p class="font-semibold"><strong>Load Capacity:</strong> 4,000 kg</p></div>`,
+                downloads: [{ name: "CTX-PR_Turntable_Specification.pdf", url: "#" }]
+            },
+            ctx_plus: {
+                title: "CTX+ Range In-Ground Turntable",
+                image_url: "https://placehold.co/600x400/c7d2fe/4338ca?text=CTX%2B",
+                description: "You need the power and size. With an 8000 kg capacity and diameters up to 6.5 metres, it's built to handle two cars or a single, very large private vehicle.",
+                benefits: [ { icon: icons.heavyDuty, text: 'Heavy-Duty' }, { icon: icons.dualVehicle, text: 'Dual Vehicle Size' }, { icon: icons.durable, text: 'Durable Build' } ],
+                price_info: { base: 45000, options: [ { id: 'diameter', label: 'Select Diameter:', type: 'select', values: [ { text: '5.6m', cost: 0 }, { text: '6.0m', cost: 3000 }, { text: '6.5m', cost: 6000 } ] } ], note: 'Final cost depends on options.', helper: '<strong>5.6m:</strong> Comfortably fits one very large vehicle.<br><strong>6.0m:</strong> Designed to accommodate two standard sedans.<br><strong>6.5m:</strong> The premium choice for two large SUVs or utes.' },
+                details: `<h4 class="text-xl font-bold mb-4 text-gray-800">Key Features:</h4>
+                     <ul class="space-y-3 text-gray-600">
+                         <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Heavy-Duty Capacity:</strong> Engineered for an 8000 kg operating capacity.</div></li>
+                         <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Dual Vehicle / Large Size:</strong> Large enough to handle two standard vehicles or one very large one.</div></li>
+                         <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Durable Finish:</strong> Comes with a robust hot-dipped galvanised chequer plate surface.</div></li>
+                    </ul>
+                    <div class="mt-6 pt-4 border-t border-gray-200"><p class="font-semibold"><strong>Available Diameters:</strong> 5.6m, 6.0m, 6.5m</p><p class="font-semibold"><strong>Load Capacity:</strong> 8,000 kg</p></div>`,
+                downloads: [{ name: "CTX+_Turntable_Specification.pdf", url: "#" }]
+            },
+            ctx_pr_plus: {
+                title: "CTX-PR+ Range In-Ground Turntable",
+                image_url: "https://placehold.co/600x400/c7d2fe/4338ca?text=CTX-PR%2B",
+                description: "The ultimate combination of strength and style. It has the 8000 kg capacity you need, plus the rebate for your custom infill, ensuring a perfect blend of brawn and beauty.",
+                benefits: [ { icon: icons.custom, text: 'Fully Customisable' }, { icon: icons.heavyDuty, text: 'Heavy-Duty' }, { icon: icons.dualVehicle, text: 'Dual Vehicle Size' } ],
+                 price_info: { base: 48000, options: [ { id: 'diameter', label: 'Select Diameter:', type: 'select', values: [ { text: '5.6m', cost: 0 }, { text: '6.0m', cost: 3000 }, { text: '6.5m', cost: 6000 } ] } ], note: 'Final cost depends on options.', helper: '<strong>5.6m:</strong> Comfortably fits one very large vehicle.<br><strong>6.0m:</strong> Designed to accommodate two standard sedans.<br><strong>6.5m:</strong> The premium choice for two large SUVs or utes.' },
+                details: `<h4 class="text-xl font-bold mb-4 text-gray-800">Key Features:</h4>
+                    <ul class="space-y-3 text-gray-600">
+                         <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Maximum Power & Style:</strong> Combines 8000 kg capacity with full surface customisation.</div></li>
+                         <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Invisible Look:</strong> The 100mm rebate allows for a seamless match with your high-end finishes.</div></li>
+                         <li class="flex items-start"><span class="text-blue-600 mr-3 mt-1">&#10004;</span> <div><strong>Dual Vehicle / Large Size:</strong> The premier choice for multi-car or large vehicle parking solutions.</div></li>
+                    </ul>
+                    <div class="mt-6 pt-4 border-t border-gray-200"><p class="font-semibold"><strong>Available Diameters:</strong> 5.6m, 6.0m, 6.5m</p><p class="font-semibold"><strong>Load Capacity:</strong> 8,000 kg</p></div>`,
+                downloads: [{ name: "CTX-PR+_Turntable_Specification.pdf", url: "#" }]
+            }
+        };
 
-        auth.signInAnonymously().catch(error => {
-            console.error("Anonymous sign-in failed:", error);
-            const appContainer = document.getElementById('app-container');
-            appContainer.innerHTML = `<div class="text-center p-8"><h1 class="text-2xl font-bold text-red-600">Firebase Connection Failed</h1><p class="mt-2 text-gray-600">Could not connect to the database. Please check your connection or contact support.</p></div>`;
+        const professionalResultsData = {
+            ctx: {
+                ...resultsData.ctx,
+                description: "Suitable for single-vehicle applications requiring a durable, integrated solution. The hot-dipped galvanised chequer plate provides a robust, trafficable surface.",
+                specs: `<h4 class="text-xl font-bold mb-4 text-gray-800">Core Technical Specifications:</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                        <div><strong class="text-gray-900 block">Platform Finish:</strong> Hot-dipped galvanised chequer plate (5mm)</div>
+                        <div><strong class="text-gray-900 block">Slab Depth:</strong> 210mm min.</div>
+                        <div><strong class="text-gray-900 block">Operating Capacity:</strong> 4,000 kg</div>
+                        <div><strong class="text-gray-900 block">Distributed Load Capacity:</strong> 5 kPa</div>
+                        <div><strong class="text-gray-900 block">Drive Mechanism:</strong> Gear-driven, 0.37 kW motor</div>
+                        <div><strong class="text-gray-900 block">Power Supply:</strong> AC-240V 50Hz 10Amps</div>
+                    </div>
+                    <h4 class="text-xl font-bold mt-6 mb-4 text-gray-800">Sizing & Clearance Specifications</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                        <div class="bg-white p-3 rounded-lg border"><p class="font-bold text-gray-900">4.0m Turntable</p><p class="text-sm text-gray-600">Req. 5.8m Clearance Dia.</p></div>
+                        <div class="bg-white p-3 rounded-lg border"><p class="font-bold text-gray-900">4.5m Turntable</p><p class="text-sm text-gray-600">Req. 6.0m Clearance Dia.</p></div>
+                        <div class="bg-white p-3 rounded-lg border"><p class="font-bold text-gray-900">4.8m Turntable</p><p class="text-sm text-gray-600">Req. 6.0m Clearance Dia.</p></div>
+                    </div>`
+            },
+             ctx_pr: {
+                ...resultsData.ctx_pr,
+                description: "The ideal specification for projects demanding seamless architectural integration. The 100mm platform rebate allows for infill with specified materials (concrete, pavers, tiles).",
+                specs: `<h4 class="text-xl font-bold mb-4 text-gray-800">Core Technical Specifications:</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                        <div><strong class="text-gray-900 block">Platform Finish:</strong> 100mm rebate for custom infill</div>
+                        <div><strong class="text-gray-900 block">Slab Depth:</strong> 305mm min.</div>
+                        <div><strong class="text-gray-900 block">Operating Capacity:</strong> 4,000 kg</div>
+                        <div><strong class="text-gray-900 block">Allowable Infill Mass:</strong> Up to 4,700 kg (model dependent)</div>
+                        <div><strong class="text-gray-900 block">Drive Mechanism:</strong> Gear-driven, 0.75 kW motor</div>
+                        <div><strong class="text-gray-900 block">Power Supply:</strong> AC-240V 50Hz 10Amps</div>
+                    </div>
+                    <h4 class="text-xl font-bold mt-6 mb-4 text-gray-800">Sizing & Clearance Specifications</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                        <div class="bg-white p-3 rounded-lg border"><p class="font-bold text-gray-900">4.0m Turntable</p><p class="text-sm text-gray-600">Req. 5.8m Clearance Dia.</p></div>
+                        <div class="bg-white p-3 rounded-lg border"><p class="font-bold text-gray-900">4.5m Turntable</p><p class="text-sm text-gray-600">Req. 6.0m Clearance Dia.</p></div>
+                        <div class="bg-white p-3 rounded-lg border"><p class="font-bold text-gray-900">4.8m Turntable</p><p class="text-sm text-gray-600">Req. 6.0m Clearance Dia.</p></div>
+                    </div>`
+            },
+            ctx_plus: {
+                ...resultsData.ctx_plus,
+                description: "Heavy-duty specification for dual-vehicle residential projects or single light commercial vehicles. Offers increased diameter and load capacity with a standard chequer plate finish.",
+                 specs: `<h4 class="text-xl font-bold mb-4 text-gray-800">Core Technical Specifications:</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                        <div><strong class="text-gray-900 block">Platform Finish:</strong> Hot-dipped galvanised chequer plate (5mm)</div>
+                        <div><strong class="text-gray-900 block">Slab Depth:</strong> 260mm min.</div>
+                        <div><strong class="text-gray-900 block">Operating Capacity:</strong> 8,000 kg</div>
+                        <div><strong class="text-gray-900 block">Distributed Load Capacity:</strong> 5 kPa</div>
+                        <div><strong class="text-gray-900 block">Drive Mechanism:</strong> Gear-driven, 0.75 kW motor</div>
+                        <div><strong class="text-gray-900 block">Power Supply:</strong> AC-240V 50Hz 10Amps</div>
+                    </div>
+                    <h4 class="text-xl font-bold mt-6 mb-4 text-gray-800">Sizing & Clearance Specifications</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                        <div class="bg-white p-3 rounded-lg border"><p class="font-bold text-gray-900">5.6m Turntable</p><p class="text-sm text-gray-600">Req. 6.0m Clearance Dia.</p></div>
+                        <div class="bg-white p-3 rounded-lg border"><p class="font-bold text-gray-900">6.0m Turntable</p><p class="text-sm text-gray-600">Req. 7.2m Clearance Dia.</p></div>
+                        <div class="bg-white p-3 rounded-lg border"><p class="font-bold text-gray-900">6.5m Turntable</p><p class="text-sm text-gray-600">Req. 7.2m Clearance Dia.</p></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2 text-center">Clearance diameters based on specified vehicle sizes (e.g. B99, 2xB85). Refer to tech specs for details.</p>`
+            },
+            ctx_pr_plus: {
+                ...resultsData.ctx_pr_plus,
+                description: "The premium solution for high-end projects requiring both maximum load capacity and complete aesthetic integration via a custom infill platform.",
+                specs: `<h4 class="text-xl font-bold mb-4 text-gray-800">Core Technical Specifications:</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                        <div><strong class="text-gray-900 block">Platform Finish:</strong> 100mm rebate for custom infill</div>
+                        <div><strong class="text-gray-900 block">Slab Depth:</strong> 355mm min.</div>
+                        <div><strong class="text-gray-900 block">Operating Capacity:</strong> 8,000 kg</div>
+                        <div><strong class="text-gray-900 block">Allowable Infill Mass:</strong> Up to 8,000 kg (model dependent)</div>
+                        <div><strong class="text-gray-900 block">Drive Mechanism:</strong> Gear-driven, 2x 0.75 kW motors</div>
+                        <div><strong class="text-gray-900 block">Power Supply:</strong> AC-240V 50Hz 10Amps</div>
+                    </div>
+                    <h4 class="text-xl font-bold mt-6 mb-4 text-gray-800">Sizing & Clearance Specifications</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                        <div class="bg-white p-3 rounded-lg border"><p class="font-bold text-gray-900">5.6m Turntable</p><p class="text-sm text-gray-600">Req. 6.0m Clearance Dia.</p></div>
+                        <div class="bg-white p-3 rounded-lg border"><p class="font-bold text-gray-900">6.0m Turntable</p><p class="text-sm text-gray-600">Req. 7.2m Clearance Dia.</p></div>
+                        <div class="bg-white p-3 rounded-lg border"><p class="font-bold text-gray-900">6.5m Turntable</p><p class="text-sm text-gray-600">Req. 7.2m Clearance Dia.</p></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2 text-center">Clearance diameters based on specified vehicle sizes (e.g. B99, 2xB85). Refer to tech specs for details.</p>`
+            }
+        };
+
+
+        let currentQuestionIndex = 0;
+        let userAnswers = {};
+        let allLeadData = {};
+        let questionFlow = [];
+
+        const stageProgressContainer = document.getElementById('stage-progress-container');
+        const startScreen = document.getElementById('start-screen');
+        const initialFormScreen = document.getElementById('initial-form-screen');
+        const assessmentScreen = document.getElementById('assessment-screen');
+        const teaserDetailsScreen = document.getElementById('teaser-details-screen');
+        const resultsScreen = document.getElementById('results-screen');
+        const professionalResultsScreen = document.getElementById('professional-results-screen');
+        
+        const goToFormBtn = document.getElementById('go-to-form-btn');
+        const initialLeadForm = document.getElementById('initial-lead-form');
+        const finalLeadForm = document.getElementById('final-lead-form');
+        const backToStartBtns = document.querySelectorAll('.back-to-start-btn');
+        
+        const questionTitle = document.getElementById('question-title');
+        const questionSubtitle = document.getElementById('question-subtitle');
+        const optionsContainer = document.getElementById('options-container');
+        
+        const resultImage = document.getElementById('result-image');
+        const resultTitle = document.getElementById('result-title');
+        const resultDescription = document.getElementById('result-description');
+        const resultBenefits = document.getElementById('result-benefits');
+        const resultDetails = document.getElementById('result-details');
+        const resultPricing = document.getElementById('result-pricing');
+        const resultDownloads = document.getElementById('result-downloads');
+        
+        const profResultImage = document.getElementById('prof-result-image');
+        const profResultTitle = document.getElementById('prof-result-title');
+        const profResultDescription = document.getElementById('prof-result-description');
+        const profResultSpecs = document.getElementById('prof-result-specs');
+        const profResultDownloads = document.getElementById('prof-result-downloads');
+        
+        const teaserText = document.getElementById('teaser-text');
+
+        const updateStageProgress = (currentStage) => {
+            const stages = stageProgressContainer.querySelectorAll('.stage');
+            stages.forEach(stage => {
+                const stageNumber = parseInt(stage.dataset.stage, 10);
+                stage.classList.remove('active', 'completed');
+                if (stageNumber < currentStage) {
+                    stage.classList.add('completed');
+                } else if (stageNumber === currentStage) {
+                    stage.classList.add('active');
+                }
+            });
+        };
+        
+        const getQuestionById = (id) => assessmentData[id];
+
+        goToFormBtn.addEventListener('click', () => {
+             startScreen.classList.add('hidden');
+             initialFormScreen.classList.remove('hidden');
+             stageProgressContainer.classList.remove('hidden');
+             updateStageProgress(2);
+        });
+        
+        initialLeadForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(initialLeadForm);
+            allLeadData = Object.fromEntries(formData.entries());
+            startAssessment();
         });
 
-        document.addEventListener('DOMContentLoaded', () => {
-            const appContainer = document.getElementById('app-container');
-            const steps = document.querySelectorAll('.step');
-            const nextBtn = document.getElementById('nextBtn');
-            const prevBtn = document.getElementById('prevBtn');
-            const stepIndicator = document.getElementById('step-indicator');
-            const generateReportBtn = document.getElementById('generateReportBtn');
-            const addPersonaBtn = document.getElementById('addPersonaBtn');
-            const snapshotContainer = document.getElementById('snapshot-container');
+        finalLeadForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(finalLeadForm);
+            const finalData = Object.fromEntries(formData.entries());
+            allLeadData = {...allLeadData, ...finalData};
+            showResults();
+        });
 
-            let currentStep = 1;
-            const totalSteps = steps.length;
-            let personalityChart = null;
-            let personalityChartImage = null;
+        backToStartBtns.forEach(btn => {
+            btn.addEventListener('click', restartAssessment);
+        });
 
-            const state = {
-                'orgName': '', 'oneLiner': '', 'pitch': '', 'objective': '',
-                'competitors': [], 'differentiation': '', 'risks': '', 'marketPosition': '', 'donts': '',
-                'audience': { economicBuyer: '', endUser: '', technicalInfluencer: '', otherInfluencer: '' },
-                'purpose': '', 'selectedTags': [], 'admiredBrands': '', 'colors': '', 'personas': []
-            };
-            
-            const personalityData = {
-                'Technical & Scientific': ['Precise', 'Data-Driven', 'Analytical', 'Innovative', 'Rigorous', 'Systematic'],
-                'Warm & Human': ['Empathetic', 'Friendly', 'Supportive', 'Approachable', 'Authentic', 'Collaborative'],
-                'Minimal & Modern': ['Simple', 'Elegant', 'Bold', 'Confident', 'Refined', 'Forward-thinking'],
-                'Industrial & Rugged': ['Strong', 'Durable', 'Practical', 'Grounded', 'Reliable', 'Hardworking'],
-            };
-            const allTags = Object.values(personalityData).flat();
-            const tagsContainer = document.getElementById('personality-tags-container');
-            allTags.forEach(tag => {
+        function startAssessment() {
+            initialFormScreen.classList.add('hidden');
+            assessmentScreen.classList.remove('hidden');
+            currentQuestionIndex = 0;
+            userAnswers = {};
+            questionFlow = [getQuestionById('installation')];
+            updateStageProgress(3);
+            displayQuestion();
+        }
+        
+        function restartAssessment() {
+            resultsScreen.classList.add('hidden');
+            professionalResultsScreen.classList.add('hidden');
+            teaserDetailsScreen.classList.add('hidden');
+            assessmentScreen.classList.add('hidden');
+            initialFormScreen.classList.add('hidden');
+            stageProgressContainer.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+            initialLeadForm.reset();
+            finalLeadForm.reset();
+            updateStageProgress(1);
+        }
+
+        function displayQuestion() {
+            const question = questionFlow[currentQuestionIndex];
+            questionTitle.textContent = question.title;
+            questionSubtitle.textContent = question.subtitle;
+            optionsContainer.innerHTML = '';
+
+            question.options.forEach(option => {
                 const button = document.createElement('button');
-                button.className = 'personality-tag px-4 py-2 rounded-full text-sm font-medium';
-                button.textContent = tag;
-                button.dataset.tag = tag;
-                tagsContainer.appendChild(button);
+                button.className = 'quiz-option w-full text-left p-4 border border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500';
+                let descriptionHTML = option.description ? `<p class="text-gray-600">${option.description}</p>` : '';
+                button.innerHTML = `
+                    <span class="font-bold text-lg text-gray-800">${option.text}</span>
+                    ${descriptionHTML}
+                `;
+                button.onclick = () => selectAnswer(question.id, option.value);
+                optionsContainer.appendChild(button);
             });
+        }
+
+        function selectAnswer(questionId, value) {
+            userAnswers[questionId] = value;
             
-            const persona1FieldsHTML = document.getElementById('persona1-block').querySelector('.space-y-6').innerHTML;
-            for(let i = 2; i <= 3; i++) {
-                const container = document.getElementById(`persona${i}-block`).querySelector('.space-y-6');
-                if (container) {
-                    container.innerHTML = persona1FieldsHTML.replaceAll('persona1', `persona${i}`);
+            if (questionId === 'installation') {
+                if (value === 'inground') {
+                    questionFlow = [
+                        getQuestionById('ctx_finish'),
+                        getQuestionById('ctx_vehicle'),
+                        getQuestionById('ctx_team')
+                    ];
+                    currentQuestionIndex = 0;
+                    displayQuestion();
+                } else { 
+                    showTeaserDetailsScreen();
+                }
+            } else {
+                currentQuestionIndex++;
+                if (currentQuestionIndex < questionFlow.length) {
+                    displayQuestion();
+                } else {
+                    showTeaserDetailsScreen();
                 }
             }
-            
-            addPersonaBtn.addEventListener('click', () => {
-                const p2 = document.getElementById('persona2-block'), p3 = document.getElementById('persona3-block');
-                if (p2.classList.contains('hidden')) {
-                    p2.classList.remove('hidden'); addPersonaBtn.textContent = 'Add Persona 3';
-                } else if (p3.classList.contains('hidden')) {
-                    p3.classList.remove('hidden'); addPersonaBtn.disabled = true; addPersonaBtn.textContent = 'All Personas Added';
-                }
-            });
+        }
 
-            const updateStepView = () => {
-                steps.forEach((step, index) => step.classList.toggle('hidden', index + 1 !== currentStep));
-                stepIndicator.textContent = `Step ${currentStep} of ${totalSteps}`;
-                prevBtn.disabled = currentStep === 1;
-                nextBtn.classList.toggle('hidden', currentStep === totalSteps);
-            };
+        function showTeaserDetailsScreen() {
+            assessmentScreen.classList.add('hidden');
+            teaserDetailsScreen.classList.remove('hidden');
+            updateStageProgress(4);
             
-            nextBtn.addEventListener('click', () => { if (currentStep < totalSteps) { currentStep++; updateStepView(); } });
-            prevBtn.addEventListener('click', () => { if (currentStep > 1) { currentStep--; updateStepView(); } });
+            const resultKey = calculateResult();
+            const resultData = resultsData[resultKey];
+            teaserText.innerHTML = `Based on your needs, we recommend the <strong class="text-blue-800">${resultData.title}</strong>`;
+
+
+            const isProfessional = userAnswers['ctx_team'] === 'professional';
+            const homeownerFields = document.getElementById('homeowner-fields');
+            const finalSubmitBtn = document.getElementById('final-submit-btn');
+
+            if (isProfessional) {
+                homeownerFields.classList.add('hidden');
+                finalSubmitBtn.textContent = 'Unlock Recommendation & Resources';
+            } else {
+                homeownerFields.classList.remove('hidden');
+                finalSubmitBtn.textContent = 'Unlock Full Recommendation';
+            }
+        }
+
+
+        function showResults() {
+            teaserDetailsScreen.classList.add('hidden');
+            updateStageProgress(5);
+            const userRole = userAnswers['ctx_team'];
+
+            if (userRole === 'professional') {
+                showProfessionalResults();
+            } else {
+                showHomeownerResults();
+            }
+        }
+
+        function showHomeownerResults() {
+            resultsScreen.classList.remove('hidden');
+            const resultKey = calculateResult();
+            const resultData = resultsData[resultKey];
             
-            function updateStateFromInputs() {
-                state.orgName = document.getElementById('orgName').value;
-                state.oneLiner = document.getElementById('oneLiner').value;
-                state.pitch = document.getElementById('pitch').value;
-                state.objective = document.getElementById('objective').value;
-                state.competitors = [1, 2, 3].map(i => ({ name: document.getElementById(`competitor${i}_name`).value, why: document.getElementById(`competitor${i}_why`).value })).filter(c => c.name);
-                state.differentiation = document.getElementById('differentiation').value;
-                state.risks = document.getElementById('risks').value;
-                const positionEl = document.querySelector('input[name="position"]:checked');
-                state.marketPosition = positionEl ? positionEl.value : '';
-                state.donts = document.getElementById('donts').value;
-                state.audience = {
-                    economicBuyer: document.getElementById('economicBuyer').value,
-                    endUser: document.getElementById('endUser').value,
-                    technicalInfluencer: document.getElementById('technicalInfluencer').value,
-                    otherInfluencer: document.getElementById('otherInfluencer').value,
-                };
-                state.purpose = document.getElementById('purpose').value;
-                state.selectedTags = Array.from(tagsContainer.querySelectorAll('.personality-tag.selected')).map(btn => btn.dataset.tag);
-                state.admiredBrands = document.getElementById('admiredBrands').value;
-                state.colors = document.getElementById('colors').value;
-                state.personas = [];
-                for(let i = 1; i <= 3; i++) {
-                    const nameEl = document.getElementById(`persona${i}_name`);
-                    if (nameEl && nameEl.value.trim() !== '') {
-                        const channelsChecked = Array.from(document.querySelectorAll(`#persona${i}_channels input[type=checkbox]:checked`)).map(cb => {
-                            if (cb.value === 'Other') {
-                                const otherText = document.getElementById(`persona${i}_channels_other`).value;
-                                return otherText ? `Other: ${otherText}` : 'Other';
-                            }
-                            return cb.value;
-                        });
-                        state.personas.push({ name: nameEl.value, role: document.getElementById(`persona${i}_role`).value, motivations: document.getElementById(`persona${i}_motivations`).value, barriers: document.getElementById(`persona${i}_barriers`).value, channels: channelsChecked });
+            resultImage.src = resultData.image_url;
+            resultImage.alt = resultData.title;
+            resultTitle.textContent = resultData.title;
+            resultDescription.textContent = resultData.description;
+            
+            resultBenefits.innerHTML = '';
+            if (resultData.benefits) {
+                const benefitsHTML = resultData.benefits.map(benefit => `
+                    <div class="text-center">
+                        <div class="h-10 flex items-center justify-center">${benefit.icon}</div>
+                        <p class="mt-2 text-sm font-medium text-gray-600">${benefit.text}</p>
+                    </div>
+                `).join('');
+                resultBenefits.innerHTML = `<h4 class="text-xl font-bold mb-4 text-gray-800 text-center">At a Glance</h4><div class="grid grid-cols-3 gap-4 bg-white p-4 rounded-lg shadow-inner">${benefitsHTML}</div>`;
+            }
+
+            resultDetails.innerHTML = resultData.details;
+            if (resultData.price_info) {
+                displayPricingSection(resultData.price_info);
+            } else {
+                 resultPricing.innerHTML = '';
+            }
+            resultDownloads.innerHTML = '<h4 class="text-xl font-bold mb-4 text-gray-800 text-center">Download Technical Documentation</h4><div class="flex flex-wrap gap-4 justify-center"></div>';
+            const downloadContainer = resultDownloads.querySelector('div');
+            resultData.downloads.forEach(doc => {
+                 downloadContainer.innerHTML += `<a href="${doc.url}" download="${doc.name}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg inline-flex items-center transition-colors">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/></svg>
+                    <span>${doc.name}</span></a>`;
+            });
+        }
+        
+        function showProfessionalResults() {
+            professionalResultsScreen.classList.remove('hidden');
+            const resultKey = calculateResult();
+            const resultData = professionalResultsData[resultKey];
+
+            if (!resultData) { 
+                showHomeownerResults(); 
+                return;
+            }
+
+            profResultImage.src = resultData.image_url;
+            profResultImage.alt = resultData.title;
+            profResultTitle.textContent = resultData.title;
+            profResultDescription.textContent = resultData.description;
+            profResultSpecs.innerHTML = resultData.specs;
+
+            const profDownloadsHTML = `
+                <h4 class="text-xl font-bold mb-4 text-gray-800 text-center">Design Files & Specifications</h4>
+                <div class="flex flex-wrap gap-4 justify-center">
+                    <a href="#" download class="bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold py-2 px-4 rounded-lg inline-flex items-center transition-colors">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        <span>${resultData.downloads[0].name}</span>
+                    </a>
+                    <a href="#" download class="bg-green-100 hover:bg-green-200 text-green-800 font-semibold py-2 px-4 rounded-lg inline-flex items-center transition-colors">
+                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v11m0 5l-3-3m0 0l3-3m-3 3h5"></path></svg>
+                        <span>CAD Files (.dwg)</span>
+                    </a>
+                    <a href="#" download class="bg-red-100 hover:bg-red-200 text-red-800 font-semibold py-2 px-4 rounded-lg inline-flex items-center transition-colors">
+                       <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        <span>Revit Family (.rfa)</span>
+                    </a>
+                </div>`;
+            profResultDownloads.innerHTML = profDownloadsHTML;
+        }
+
+        function displayPricingSection(priceInfo) {
+            let optionsHTML = '';
+            let helperHTML = '';
+            if (priceInfo.options) {
+                priceInfo.options.forEach(opt => {
+                    if (opt.type === 'select') {
+                        const selectOptions = opt.values.map(val => `<option value="${val.cost}" data-label="${val.text}">${val.text}</option>`).join('');
+                        let labelHTML = `<label for="${opt.id}" class="text-gray-600">${opt.label}</label>`;
+                        if (priceInfo.helper) {
+                             labelHTML += `<button type="button" id="diameter-helper-btn" class="ml-2 text-blue-600 hover:underline text-sm">(Help me choose)</button>`;
+                             helperHTML = `<div id="diameter-helper-text" class="hidden mt-2 p-3 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg">${priceInfo.helper}</div>`;
+                        }
+                        optionsHTML += `<div class="flex items-center justify-between"><div>${labelHTML}</div><select id="${opt.id}" class="price-option input-field w-auto">${selectOptions}</select></div>`;
+                    } else {
+                        optionsHTML += `<div class="flex items-center justify-between"><label for="${opt.id}" class="text-gray-600">${opt.label}</label><input type="checkbox" id="${opt.id}" value="${opt.cost}" class="price-option h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"></div>`;
                     }
-                }
-            }
-            
-            function renderSnapshot() {
-                updateStateFromInputs();
-                snapshotContainer.innerHTML = '';
-                
-                const createCard = (title, content, iconSvg) => {
-                    const card = document.createElement('div');
-                    card.className = 'snapshot-card';
-                    card.innerHTML = `<div class="snapshot-icon">${iconSvg}</div><div class="snapshot-content"><h4>${title}</h4>${content}</div>`;
-                    return card;
-                };
-
-                const icons = {
-                    org: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h6M9 11.25h6M9 15.75h6" /></svg>`,
-                    quote: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.17 48.17 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>`,
-                    objective: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15.91 15.91L12 12m0 0l-3.91-3.91M12 12l3.91-3.91M12 12l-3.91 3.91" /></svg>`,
-                    diff: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
-                    risks: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>`,
-                    audience: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m-7.5-2.962c.57-1.023 1.535-1.85 2.7-2.337m-2.7 2.337c-.329 1.155.114 2.384.624 3.379m6.12-3.379c.51 1 .624 2.224.114 3.379m-6.234-4.553a3.03 3.03 0 013.748 0M12 6.75a3.03 3.03 0 013.748 0m-3.748 0a3.03 3.03 0 00-3.748 0M12 19.5a3.03 3.03 0 01-3.748 0m3.748 0a3.03 3.03 0 003.748 0m-3.748-12.75h.008v.008h-.008V6.75z" /></svg>`,
-                    purpose: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" /></svg>`,
-                    donts: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>`,
-                    colors: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.152-.152.322-.28.5-.398l4.493-2.012a.75.75 0 01.99.99l-2.012 4.493c-.118.278-.246.548-.398.8z" /></svg>`,
-                };
-                
-                const contentOrPlaceholder = (value, placeholder) => `<p>${value || `<span class="snapshot-placeholder">${placeholder}</span>`}</p>`;
-                
-                snapshotContainer.appendChild(createCard('Organization Name', contentOrPlaceholder(state.orgName, 'Your name...'), icons.org));
-                snapshotContainer.appendChild(createCard('One-Liner', contentOrPlaceholder(state.oneLiner, 'Your one-liner...'), icons.quote));
-                snapshotContainer.appendChild(createCard('Primary Objective', contentOrPlaceholder(state.objective, 'Your main goal...'), icons.objective));
-                
-                if (state.differentiation) snapshotContainer.appendChild(createCard('Key Differentiators', `<ul class="list-disc list-inside">${state.differentiation.split(',').map(i=>`<li>${i.trim()}</li>`).join('')}</ul>`, icons.diff));
-                if (state.risks) snapshotContainer.appendChild(createCard('Risks & Barriers', `<ul class="list-disc list-inside">${state.risks.split(',').map(i=>`<li>${i.trim()}</li>`).join('')}</ul>`, icons.risks));
-                
-                const audienceContent = Object.entries(state.audience).map(([key, value]) => value ? `<strong>${key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</strong> ${value}` : '').filter(Boolean).join('<br>');
-                if (audienceContent) snapshotContainer.appendChild(createCard('Key Audience Roles', `<p class="text-xs">${audienceContent.replace(/\n/g, '<br>')}</p>`, icons.audience));
-                
-                if (state.purpose) snapshotContainer.appendChild(createCard('Brand Purpose (The "Why")', contentOrPlaceholder(state.purpose, 'Your purpose...'), icons.purpose));
-                if (state.donts) snapshotContainer.appendChild(createCard('Words to Avoid', contentOrPlaceholder(state.donts, 'e.g., Cheap, Slow...'), icons.donts));
-                if (state.colors) snapshotContainer.appendChild(createCard('Color Preferences', contentOrPlaceholder(state.colors, 'Your color ideas...'), icons.colors));
-
-                if (state.selectedTags.length > 0) {
-                     let personalityContainer = document.getElementById('personalityChartContainer');
-                     if(!personalityContainer) {
-                        personalityContainer = document.createElement('div');
-                        personalityContainer.id = 'personalityChartContainer';
-                        personalityContainer.className = 'snapshot-card';
-                        personalityContainer.innerHTML = `<div class="w-full"><div class="snapshot-content"><h4>Brand Personality</h4></div><div class="chart-container"><canvas id="personalityChart"></canvas></div></div>`;
-                        snapshotContainer.appendChild(personalityContainer);
-                        initPersonalityChart();
-                     }
-                     updatePersonalityChart();
-                }
-            }
-
-            function initPersonalityChart() {
-                 const ctx = document.getElementById('personalityChart').getContext('2d');
-                 personalityChart = new Chart(ctx, {
-                    type: 'radar', data: { labels: Object.keys(personalityData), datasets: [{ data: [0, 0, 0, 0], backgroundColor: 'rgba(250, 204, 21, 0.2)', borderColor: '#facc15', borderWidth: 2 }] },
-                    options: { maintainAspectRatio: false, scales: { r: { angleLines: { color: 'rgba(0, 0, 0, 0.1)' }, grid: { color: 'rgba(0, 0, 0, 0.1)' }, pointLabels: { font: { size: 10 } }, ticks: { display: false, stepSize: 1 }, min: 0, max: 3 } }, plugins: { legend: { display: false } }, animation: { onComplete: () => { personalityChartImage = personalityChart.toBase64Image(); } } }
                 });
             }
 
-            function updatePersonalityChart() {
-                if(!personalityChart) return;
-                const scores = {'Technical & Scientific': 0, 'Warm & Human': 0, 'Minimal & Modern': 0, 'Industrial & Rugged': 0};
-                state.selectedTags = Array.from(tagsContainer.querySelectorAll('.personality-tag.selected')).map(btn => btn.dataset.tag);
-                state.selectedTags.forEach(tag => { for (const category in personalityData) { if (personalityData[category].includes(tag)) scores[category]++; } });
-                personalityChart.data.datasets[0].data = Object.values(scores);
-                personalityChart.update();
+            resultPricing.innerHTML = `
+                <h4 class="text-xl font-bold mb-4 text-gray-800 text-center">Indicative Quoting and Pricing</h4>
+                <div class="bg-white p-4 rounded-lg shadow-inner">
+                    <div id="price-options-container" class="space-y-2">${optionsHTML}</div>
+                    ${helperHTML}
+                    <div id="price-breakdown" class="pt-4 mt-4 border-t border-gray-200 space-y-2">
+                        <div class="flex justify-between items-center text-gray-600"><span>Base Model Price:</span><span id="base-price-display" class="font-medium"></span></div>
+                        <div id="options-price-display" class="space-y-1"></div>
+                        <div class="flex justify-between items-center font-bold text-gray-900 text-lg pt-2 mt-2 border-t border-gray-300"><span>Estimated Total:</span><span id="total-price-display"></span></div>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-500 mt-2 text-center">${priceInfo.note}</p>
+            `;
+
+            const priceOptions = resultPricing.querySelectorAll('.price-option');
+            priceOptions.forEach(el => el.addEventListener('change', () => updatePriceBreakdown(priceInfo.base)));
+            
+            const helperBtn = document.getElementById('diameter-helper-btn');
+            if(helperBtn) {
+                helperBtn.addEventListener('click', () => {
+                    document.getElementById('diameter-helper-text').classList.toggle('hidden');
+                });
             }
 
-            tagsContainer.addEventListener('click', (e) => {
-                if (e.target.classList.contains('personality-tag')) {
-                    const btn = e.target;
-                    const isSelected = btn.classList.contains('selected');
-                    const selectedCount = tagsContainer.querySelectorAll('.personality-tag.selected').length;
-                    
-                    if (isSelected) {
-                        btn.classList.remove('selected');
-                    } else if (selectedCount < 5) {
-                        btn.classList.add('selected');
+            updatePriceBreakdown(priceInfo.base);
+        }
+
+        function updatePriceBreakdown(basePrice) {
+            document.getElementById('base-price-display').textContent = `$${basePrice.toLocaleString('en-AU')}`;
+            const optionsDisplay = document.getElementById('options-price-display');
+            optionsDisplay.innerHTML = '';
+            
+            let total = basePrice;
+            const priceOptions = resultPricing.querySelectorAll('.price-option');
+            
+            priceOptions.forEach(el => {
+                let cost = 0;
+                let label = '';
+                
+                if (el.tagName === 'SELECT') {
+                    const selectedOption = el.options[el.selectedIndex];
+                    cost = Number(selectedOption.value);
+                    if (cost > 0) {
+                       label = el.parentElement.querySelector('label').textContent.replace(':', '') + ` (${selectedOption.dataset.label})`;
                     }
-                    renderSnapshot();
+                } else if (el.type === 'checkbox' && el.checked) {
+                    cost = Number(el.value);
+                    label = el.parentElement.querySelector('label').textContent;
                 }
+                
+                if(cost > 0) {
+                    const optionRow = document.createElement('div');
+                    optionRow.className = 'flex justify-between items-center text-gray-600 text-sm';
+                    optionRow.innerHTML = `<span>${label}:</span><span class="font-medium">+$${cost.toLocaleString('en-AU')}</span>`;
+                    optionsDisplay.appendChild(optionRow);
+                }
+
+                total += cost;
             });
+            
+            document.getElementById('total-price-display').textContent = `$${total.toLocaleString('en-AU')} AUD`;
+        }
 
-            document.getElementById('questionnaire-container').addEventListener('input', renderSnapshot);
+        function calculateResult() {
+            const installation = userAnswers['installation'];
 
-            async function saveResponseToFirebase() {
-                 if (!db) { console.error("Firestore is not initialized."); return false; }
-                 updateStateFromInputs();
-                 try {
-                     const appId = 'brand-discovery-tool';
-                     await db.collection(`/artifacts/${appId}/public/data/submissions`).add({ ...state, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-                     console.log("Document successfully written!");
-                     return true;
-                 } catch (e) { console.error("Error adding document: ", e); return false; }
+            if (installation === 'onsurface') {
+                return 'spinsy';
+            }
+
+            // In-ground (CTX) path logic
+            const finish = userAnswers['ctx_finish'];
+            const vehicle = userAnswers['ctx_vehicle'];
+            
+            if (vehicle === 'standard_single') {
+                if (finish === 'custom') return 'ctx_pr';
+                return 'ctx';
             }
             
-            function formatForReport(value) { return value || 'No response'; }
-
-            function generateReportHTML() {
-                updateStateFromInputs();
-                const mailto = `mailto:your-email@example.com?subject=${encodeURIComponent(`Brand Discovery from ${state.orgName}`)}`;
-
-                return `
-                    <style>
-                        @page { size: A4; margin: 10mm; } body { font-family: 'Archivo', sans-serif; color: #1f2937; } .report-container { max-width: 100%; margin: 0; padding: 0; background: white; }
-                        .header-logo { font-weight: 700; font-size: 2rem; letter-spacing: -0.05em; color: white; } .header-logo .logo-yellow { color: #fde047; }
-                        .report-header { background: black; color: white; padding: 20px 40px; } .report-title { font-size: 2.5rem; font-weight: 700; margin-top: 20px; border-bottom: 2px solid #facc15; padding-bottom: 10px; }
-                        .section { margin-top: 30px; page-break-inside: avoid; } .section-title { font-size: 1.5rem; font-weight: 700; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 16px; }
-                        .item-label { font-weight: 700; color: #374151; margin-top: 12px; } .item-value { color: #4b5563; white-space: pre-wrap; margin-top: 4px; font-size: 0.9rem; }
-                        .action-btn { display: inline-block; text-align: center; margin-top: 10px; margin-right: 10px; padding: 12px 24px; background: #111827; color: white; text-decoration: none; border-radius: 8px; font-weight: 500; }
-                        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .report-header { background: black !important; color: white !important; } .header-logo .logo-yellow { color: #fde047 !important; } .no-print { display: none; } }
-                    </style>
-                    <div class="report-container">
-                        <div class="report-header"><div class="header-logo"><span>the</span><span class="logo-yellow">ideas</span><span>factory</span></div></div>
-                        <div style="padding: 0 20px;">
-                            <h1 class="report-title">Brand Discovery Report</h1>
-                            <p style="margin-top: 8px; color: #6b7280;">Generated for ${state.orgName} on: ${new Date().toLocaleDateString()}</p>
-                            
-                            <div class="section"><h2 class="section-title">Business Profile</h2>
-                                <div><p class="item-label">Organization Name</p><p class="item-value">${formatForReport(state.orgName)}</p></div>
-                                <div><p class="item-label">The One-Liner</p><p class="item-value">${formatForReport(state.oneLiner)}</p></div>
-                                <div><p class="item-label">The "Who Are You?" Pitch</p><p class="item-value">${formatForReport(state.pitch)}</p></div>
-                                <div><p class="item-label">Primary Objective</p><p class="item-value">${formatForReport(state.objective)}</p></div>
-                            </div>
-                            <div class="section"><h2 class="section-title">Market Landscape</h2>
-                                <div><p class="item-label">Competitors</p>${state.competitors.map(c => `<p class="item-value"><b>${c.name}:</b> ${c.why}</p>`).join('') || '<p class="item-value">No response</p>'}</div>
-                                <div><p class="item-label">What makes you different?</p><p class="item-value">${formatForReport(state.differentiation)}</p></div>
-                                <div><p class="item-label">Risks / barriers to adoption</p><p class="item-value">${formatForReport(state.risks)}</p></div>
-                                <div><p class="item-label">Desired Market Position</p><p class="item-value">${formatForReport(state.marketPosition)}</p></div>
-                                <div><p class="item-label">Words to Avoid</p><p class="item-value">${formatForReport(state.donts)}</p></div>
-                            </div>
-                            <div class="section"><h2 class="section-title">The Audience</h2>
-                                <div><p class="item-label">Economic Buyer</p><p class="item-value">${formatForReport(state.audience.economicBuyer)}</p></div>
-                                <div><p class="item-label">End User</p><p class="item-value">${formatForReport(state.audience.endUser)}</p></div>
-                                <div><p class="item-label">Technical Influencer</p><p class="item-value">${formatForReport(state.audience.technicalInfluencer)}</p></div>
-                                <div><p class="item-label">Other Influencers</p><p class="item-value">${formatForReport(state.audience.otherInfluencer)}</p></div>
-                            </div>
-                             <div class="section"><h2 class="section-title">Brand Ambition & Personality</h2>
-                                <div><p class="item-label">Purpose - The "Why"</p><p class="item-value">${formatForReport(state.purpose)}</p></div>
-                                <p class="item-label">Selected Personality Traits</p><p class="item-value"><strong>${state.selectedTags.join(', ')}</strong></p>
-                                <img src="${personalityChartImage}" alt="Brand Personality Chart" style="max-width: 500px; margin: 20px auto; display: block;">
-                            </div>
-                            <div class="section"><h2 class="section-title">Visual Direction</h2>
-                                <div><p class="item-label">Admired Brands</p><p class="item-value">${formatForReport(state.admiredBrands)}</p></div>
-                                <div><p class="item-label">Colors</p><p class="item-value">${formatForReport(state.colors)}</p></div>
-                            </div>
-                             <div class="section"><h2 class="section-title">Target Personas (Optional)</h2>
-                                ${state.personas.map((p, i) => `<div class="persona-block" style="margin-top: 1rem; page-break-inside: avoid;"><h3 class="item-label" style="font-size: 1.1rem;">Persona ${i+1}: ${p.name}</h3><div><p class="item-label">Role / Demographic</p><p class="item-value">${formatForReport(p.role)}</p></div><div><p class="item-label">Top 3 Motivations</p><p class="item-value">${formatForReport(p.motivations)}</p></div><div><p class="item-label">Top 3 Objections / Barriers</p><p class="item-value">${formatForReport(p.barriers)}</p></div><div><p class="item-label">Channels</p><p class="item-value">${formatForReport(p.channels.join(', '))}</p></div></div>`).join('') || '<p class="item-value">No optional personas were added.</p>'}
-                            </div>
-                            <div class="no-print" style="margin-top: 40px; text-align: center; padding: 20px; background-color: #f3f4f6; border-radius: 8px;">
-                                <a href="#" onclick="window.print(); return false;" class="action-btn">Print or Save as PDF</a>
-                                <a href="${mailto}" class="action-btn">Email Report to Us</a>
-                            </div>
-                        </div>
-                    </div>`;
+            if (vehicle === 'large_single' || vehicle === 'dual_vehicle') {
+                if (finish === 'custom') return 'ctx_pr_plus';
+                return 'ctx_plus';
             }
-            
-            generateReportBtn.addEventListener('click', async (e) => {
-                const btn = e.target;
-                btn.disabled = true; btn.textContent = 'Submitting...';
-                const success = await saveResponseToFirebase();
-                if(success) {
-                    appContainer.innerHTML = generateReportHTML();
-                } else {
-                    btn.disabled = false; btn.textContent = 'Submit & Generate Report';
-                    alert('There was an issue submitting your form. Please try again.');
-                }
-            });
 
-            updateStepView();
-            renderSnapshot();
-        });
+            return 'ctx'; // Fallback for CTX path
+        }
+        
+        updateStageProgress(1);
+
     </script>
 </body>
 </html>
